@@ -133,6 +133,15 @@ void midorator_setprop(GtkWidget *web_view, const char *widget, const char *name
 	}
 }
 
+void midorator_setclipboard(GdkAtom atom, const char *str) {
+	if (atom == GDK_NONE)
+		atom = GDK_SELECTION_PRIMARY;
+	GtkClipboard *c = gtk_clipboard_get(atom);
+	if (!c)
+		return NULL;
+	gtk_clipboard_set_text(c, str, -1);
+}
+
 char* midorator_getclipboard(GdkAtom atom) {
 	if (atom == GDK_NONE)
 		atom = GDK_SELECTION_PRIMARY;
@@ -489,6 +498,8 @@ static gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* 
 			return midorator_process_command(web_view, "paste");
 		case GDK_P:
 			return midorator_process_command(web_view, "tabpaste");
+		case GDK_y:
+			return midorator_process_command(web_view, "yank");
 		case GDK_n:
 			midorator_search(web_view, NULL, true, false);
 			return true;
@@ -577,6 +588,9 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
 		midorator_process_command(web_view, "tabnew %s", uri);
 		free(uri);
+
+	} else if (strcmp(cmd[0], "yank") == 0) {
+		midorator_setclipboard(GDK_SELECTION_PRIMARY, webkit_web_view_get_uri(web_view));
 
 	} else if (strcmp(cmd[0], "search") == 0 && cmd[1] && cmd[2]) {
 		midorator_options("search", cmd[1], cmd[2]);
