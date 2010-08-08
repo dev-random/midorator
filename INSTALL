@@ -1,0 +1,21 @@
+
+1) Required:
+   Install Midori. This extension is tested with midori-0.2.6.
+
+2) Required:
+   Install devel-packages of gtk+2, webkit-gtk.
+
+3) Optional, recomended:
+   Remove midori-headers from ./include, put headers of your version there.
+
+4) Required:
+   $ make
+   (as current user)
+
+5) Required:
+   Copy (as root) "midorator.so" to midori extensions dir
+   (usually /usr/lib/midori/)
+
+6) Required:
+   Run Midori, enable extension "Midorator".
+
