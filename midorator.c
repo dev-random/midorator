@@ -221,6 +221,25 @@ static GtkStatusbar* midorator_find_sb(GtkWidget *w) {
 	return NULL;
 }
 
+static void midorator_search(GtkWidget* web_view, const char *match, bool forward, bool remember) {
+	static char *lastmatch = NULL;
+	if (match && remember) {
+		if (lastmatch)
+			free(lastmatch);
+		lastmatch = strdup(match);
+	}
+	if (!match && !lastmatch)
+		return;
+	if (match && remember) {
+		if (lastmatch[0])
+			webkit_web_view_mark_text_matches(web_view, match, false, -1);
+		else
+			webkit_web_view_unmark_text_matches(web_view);
+	}
+	webkit_web_view_search_text(web_view, match ? match : lastmatch, false, forward, true);
+	webkit_web_view_set_highlight_text_matches(web_view, true);
+}
+
 static void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
 	const char *t = gtk_entry_get_text(e);
 	if (!t)
@@ -229,6 +248,8 @@ static void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
 		midorator_entry(web_view, NULL);
 	else if (t[0] == ';')
 		midorator_process_command(web_view, "hint %s", t + 1);
+	else if (t[0] == '/')
+		midorator_search(web_view, t + 1, true, false);
 }
 
 static gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* event, GtkWidget* web_view) {
@@ -241,6 +262,8 @@ static gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* ev
 			midorator_process_command(web_view, "%s", t + 1);
 		else if (t[0] == ';')
 			midorator_process_command(web_view, "hint %s", t + 1);
+		else if (t[0] == '/')
+			midorator_search(web_view, t + 1, true, true);
 		midorator_entry(web_view, NULL);
 		return true;
 	} else
@@ -466,6 +489,12 @@ static gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* 
 			return midorator_process_command(web_view, "paste");
 		case GDK_P:
 			return midorator_process_command(web_view, "tabpaste");
+		case GDK_n:
+			midorator_search(web_view, NULL, true, false);
+			return true;
+		case GDK_N:
+			midorator_search(web_view, NULL, false, false);
+			return true;
 		case GDK_t:
 			midorator_entry(web_view, ":tabnew ");
 			return true;
@@ -525,35 +554,45 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 
 	if (cmd[0][0] == '#' || cmd[0][0] == '"') {
 		// Do nothing, it's a comment
+
 	} else if (strcmp(cmd[0], "widget") == 0 && cmd[1] && cmd[2] && cmd[3]) {
 		midorator_setprop(web_view, cmd[1], cmd[2], cmd[3]);
+
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
 		char *uri = midorator_make_uri(cmd + 1);
 		midorator_process_command(web_view, "js document.defaultView.open('%s', '_blank', 'toolbar=0');", uri);
 		free(uri);
+
 	} else if (strcmp(cmd[0], "open") == 0) {
 		char *uri = midorator_make_uri(cmd + 1);
 		midorator_process_command(web_view, "js document.location = '%s';", uri);
 		free(uri);
+
 	} else if (strcmp(cmd[0], "paste") == 0) {
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
 		midorator_process_command(web_view, "open %s", uri);
 		free(uri);
+
 	} else if (strcmp(cmd[0], "tabpaste") == 0) {
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
 		midorator_process_command(web_view, "tabnew %s", uri);
 		free(uri);
+
 	} else if (strcmp(cmd[0], "search") == 0 && cmd[1] && cmd[2]) {
 		midorator_options("search", cmd[1], cmd[2]);
+
 	} else if (strcmp(cmd[0], "bookmark") == 0 && cmd[1] && cmd[2]) {
 		midorator_options("bookmark", cmd[1], cmd[2]);
+
 	} else if (strcmp(cmd[0], "set") == 0 && cmd[1] && cmd[2] && strcmp(cmd[2], "=") == 0) {
 		if (cmd[3])
 			midorator_options("option", cmd[1], cmd[3]);
 		else
 			midorator_options("option", cmd[1], "");
+
 	} else if (strcmp(cmd[0], "set") == 0 && cmd[1] && cmd[2]) {
 		midorator_options("option", cmd[1], cmd[2]);
+
 	} else if (strcmp(cmd[0], "source") == 0 && cmd[1]) {
 		FILE *f = fopen(cmd[1], "r");
 		if (!f && cmd[1][0] == '~') {
@@ -571,6 +610,7 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 				midorator_process_command(web_view, "%s", buf);
 			fclose(f);
 		}
+
 	} else if (strcmp(cmd[0], "scroll") == 0) {
 		if (!cmd[1][0] || !cmd[2][0] || !cmd[3][0]) {
 			free(cmd);
@@ -602,15 +642,18 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 			pos = gtk_adjustment_get_upper(a);
 		
 		gtk_adjustment_set_value(a, pos);
+
 	} else if (strcmp(cmd[0], "wq") == 0) {
 		GtkWidget *w;
 		for (w = web_view; w && !GTK_IS_WINDOW(w); w = gtk_widget_get_parent(w));
 		if (w)
 			gtk_widget_destroy(w);
+
 	} else if (strcmp(cmd[0], "js") == 0) {
 		for (i=1; cmd[i]; i++) {
 			webkit_web_view_execute_script(WEBKIT_WEB_VIEW(web_view), cmd[i]);
 		}
+
 	} else if (strcmp(cmd[0], "hint") == 0 && cmd[1] && cmd[1][0]) {
 		const char *hintchars = midorator_options("option", "hintchars", NULL);
 		if (!hintchars)
@@ -618,14 +661,18 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 		midorator_process_command(web_view, "js "
 #				include "uzbl-follow.h"
 				"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "true" : "false");
+
 	} else if (strcmp(cmd[0], "unhint") == 0) {
 		midorator_process_command(web_view, "js "
 #				include "uzbl-follow.h"
 				"", "01", "a", "false");
+
 	} else if (strcmp(cmd[0], "reload") == 0) {
 		webkit_web_view_reload(WEBKIT_WEB_VIEW(web_view));
+
 	} else if (strcmp(cmd[0], "reload!") == 0) {
 		webkit_web_view_reload_bypass_cache(WEBKIT_WEB_VIEW(web_view));
+
 	} else if (strcmp(cmd[0], "go") == 0 && cmd[1] && cmd[1][0]) {
 		if (strcmp(cmd[1], "next") == 0) {
 			midorator_process_command(web_view, "js "
@@ -640,6 +687,7 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 		} else if (strcmp(cmd[1], "forth") == 0) {
 			webkit_web_view_go_forward(WEBKIT_WEB_VIEW(web_view));
 		}
+
 	} else {
 		midorator_error(web_view, "Invalid command or parameters: %s", cmd[0]);
 		free(cmd);
