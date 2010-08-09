@@ -9,8 +9,8 @@
  * TODO: Some positions are not calculated correctly (mostly
  * because of uber-fancy-designed-webpages. Basic HTML and CSS
  * works good
- * TODO: Still some links can't be followed/unexpected things
- * happen. Blame some freaky webdesigners ;)
+ * ----: Still some links can't be followed/unexpected things
+ * happen. Blame some freaky webdesigners ;) [FIXED!]
  */
 
 //Just some shortcuts and globals
@@ -20,18 +20,10 @@ var doc = document;
 var win = window;
 var links = document.links;
 var forms = document.forms;
-//Make onlick-links "clickable"
-HTMLElement.prototype.click = function() {
-	try {
-		if (typeof this.onclick == 'function') {
-			return this.onclick({
-				type: 'click'
-			});
-		} else
-			return true;
-	} catch(e) {
-		return true;
-	}
+
+//Make items "clickable"
+HTMLElement.prototype.click = function(command) {
+	return midorator_command(command, this);
 };
 
 //Calculate element position to draw the hint
@@ -122,38 +114,12 @@ function generateHint(el, label) {
 //want to "follow" it. On form elements we "select"
 //or pass the focus, on links we try to perform a click,
 //but at least set the href of the link. (needs some improvements)
-function clickElem(item, newtab) {
-    removeAllHints();
-    midorator_command('hide entry');
-    if (item) {
-        var name = item.tagName;
-        if (name == 'A') {
-                item.focus();
-		if (newtab)
-			window.open(item.href, '_blank', 'toolbar=0');
-		else if (item.click() != false)
-			window.location = item.href;
-        } else if (name == 'INPUT') {
-		midorator_command('insert mode');
-		var type = item.getAttribute('type').toUpperCase();
-		if (type == 'TEXT' || type == 'FILE' || type == 'PASSWORD') {
-			item.focus();
-			item.select();
-		} else {
-			item.click();
-		}
-        } else if (name == 'TEXTAREA' || name == 'SELECT') {
-		midorator_command('insert mode');
-		item.focus();
-		item.select();
-        } else {
-                item.focus();
-		if (newtab)
-			window.open(item.href,'_blank', 'toolbar=0');
-		else if (item.click() != false)
-			window.location = item.href;
-        }
-    }
+function clickElem(item, command) {
+	removeAllHints();
+	midorator_command('hide entry');
+	if (item) {
+		item.click(command);
+	}
 }
 //Returns a list of all links (in this version
 //just the elements itself, but in other versions, we
@@ -236,10 +202,6 @@ function labelToInt(label) {
 }
 //Put it all together
 function followLinks(follow, newtab) {
-    // if(follow.charAt(0) == 'l') {
-    //     follow = follow.substr(1);
-    //     charset = 'thsnlrcgfdbmwvz-/';
-    // }
     var s = follow.split('');
     var linknr = labelToInt(follow);
     var linkelems = addLinks();
@@ -272,4 +234,4 @@ function followLinks(follow, newtab) {
 
 //Parse input: first argument is follow keys, second is user input.
 var charset = '%s';
-followLinks('%s', %s);
+followLinks('%s', '%s');

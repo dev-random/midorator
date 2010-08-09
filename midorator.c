@@ -1,7 +1,7 @@
 #if 0
 # /*
 	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
-	make || exit 1
+	make CFLAGS=-g || exit 1
 	midori
 	exit 0
 # */
@@ -158,15 +158,118 @@ char* midorator_getclipboard(GdkAtom atom) {
 	return ret;
 }
 
+static JSValueRef midorator_js_getprop(JSContextRef ctx, JSObjectRef obj, const char *name) {
+	if (!obj)
+		obj = JSContextGetGlobalObject(ctx);
+	JSStringRef ps = JSStringCreateWithUTF8CString(name);
+	if (!JSObjectHasProperty(ctx, obj, ps)) {
+		JSStringRelease(ps);
+		return NULL;
+	}
+	JSValueRef ret = JSObjectGetProperty(ctx, obj, ps, NULL);
+	JSStringRelease(ps);
+	return ret;
+}
+
+static char* midorator_js_value_to_string(JSContextRef ctx, JSValueRef val) {
+	JSStringRef js = JSValueToStringCopy(ctx, val, NULL);
+	if (!js)
+		return NULL;
+	int len = JSStringGetMaximumUTF8CStringSize(js);
+	char *ret = (char*)malloc(len);
+	JSStringGetUTF8CString(js, ret, len);
+	JSStringRelease(js);
+	return ret;
+}
+
+static JSObjectRef midorator_js_make_event(JSContextRef ctx, JSObjectRef obj) {
+	JSObjectRef ret = JSObjectMake(ctx, NULL, NULL);
+
+	JSStringRef stopPropagation_n = JSStringCreateWithUTF8CString("stopPropagation");
+	JSStringRef stopPropagation_s = JSStringCreateWithUTF8CString("this.cancelBubble = true;");
+	JSObjectRef stopPropagation = JSObjectMakeFunction(ctx, stopPropagation_n, 0, NULL, stopPropagation_s, NULL, 0, NULL);
+	JSObjectSetProperty(ctx, ret, stopPropagation_n, stopPropagation, kJSPropertyAttributeReadOnly, NULL);
+	JSStringRelease(stopPropagation_s);
+	JSStringRelease(stopPropagation_n);
+
+	JSStringRef preventDefault_n = JSStringCreateWithUTF8CString("preventDefault");
+	JSStringRef preventDefault_s = JSStringCreateWithUTF8CString("this.returnValue = true;");
+	JSObjectRef preventDefault = JSObjectMakeFunction(ctx, preventDefault_n, 0, NULL, preventDefault_s, NULL, 0, NULL);
+	JSObjectSetProperty(ctx, ret, preventDefault_n, preventDefault, kJSPropertyAttributeReadOnly, NULL);
+	JSStringRelease(preventDefault_s);
+	JSStringRelease(preventDefault_n);
+
+	if (obj) {
+		JSStringRef target = JSStringCreateWithUTF8CString("target");
+		JSObjectSetProperty(ctx, ret, target, obj, kJSPropertyAttributeReadOnly, NULL);
+		JSStringRelease(target);
+	}
+
+	return ret;
+}
+
+static JSValueRef midorator_js_callprop(GtkWidget *web_view, JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
+	JSValueRef prop = midorator_js_getprop(ctx, obj, name);
+	if (!prop || !JSValueIsObject(ctx, prop))
+		return NULL;
+	JSObjectRef handler = JSValueToObject(ctx, prop, NULL);
+	if (!handler)
+		return NULL;
+	if (!JSObjectIsFunction(ctx, handler)) {
+		if (web_view)
+			midorator_error(web_view, "Not a function: %s", name);
+		else
+			fprintf(stderr, "Not a function: %s\n", name);
+		return NULL;
+	}
+	JSValueRef ex = NULL;
+	JSValueRef ret = JSObjectCallAsFunction(ctx, handler, obj, argc, argv, &ex);
+	if (ex) {
+		char *s = midorator_js_value_to_string(ctx, ex);
+		if (s) {
+			if (web_view)
+				midorator_error(web_view, "JS error: %s", s);
+			else
+				fprintf(stderr, "JS error: %s\n", s);
+			free(s);
+		} else {
+			if (web_view)
+				midorator_error(web_view, "JS error: (null)");
+			else
+				fprintf(stderr, "JS error: (null)\n");
+		}
+		ret = NULL;
+	}
+	return ret;
+}
+
+static bool midorator_js_handle(GtkWidget *web_view, JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
+	if (argc) {
+		JSObjectRef window = midorator_js_getprop(ctx, NULL, "window");
+		JSStringRef sw = JSStringCreateWithUTF8CString("event");
+		JSObjectSetProperty(ctx, window, sw, argv[0], kJSPropertyAttributeReadOnly, NULL);
+		JSStringRelease(sw);
+	}
+	for (/*obj=obj*/; obj; obj = midorator_js_getprop(ctx, obj, "parentNode")) {
+		JSValueRef ret = midorator_js_callprop(web_view, ctx, obj, name, argc, argv);
+		if (ret) {
+			if (argc && midorator_js_getprop(ctx, argv[0], "cancelBubble"))
+				return false;
+			if (JSValueIsBoolean(ctx, ret) && !JSValueToBoolean(ctx, ret))
+				return false;
+		}
+	}
+	if (argc && midorator_js_getprop(ctx, argv[0], "returnValue"))
+		return false;
+	return true;
+}
+
 static JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
 	if (argumentCount < 1 || !JSValueIsString(ctx, arguments[0]))
 		return JSValueMakeNull(ctx);
 	
 	// Get preperty 'midorator_internal' (we stored pointer to 'web_view' there)
-	JSStringRef sw = JSStringCreateWithUTF8CString("midorator_internal");
-	JSObjectRef global = JSContextGetGlobalObject(ctx);
-	JSValueRef v = JSObjectGetProperty(ctx, global, sw, NULL);
-	JSStringRelease(sw);
+	JSValueRef v = midorator_js_getprop(ctx, NULL, "midorator_internal");
 	
 	if (!JSValueIsString(ctx, v))
 		return JSValueMakeNull(ctx);
@@ -185,6 +288,52 @@ static JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function, 
 		midorator_entry(web_view, NULL);
 	else if (JSStringIsEqualToUTF8CString(param, "insert mode"))
 		midorator_mode(web_view, 'n');
+	else if (JSStringIsEqualToUTF8CString(param, "click")) {
+		JSStringRelease(param);
+		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
+			return JSValueMakeNull(ctx);
+		JSObjectRef obj = JSValueToObject(ctx, arguments[1], NULL);
+		if (!obj)
+			return JSValueMakeNull(ctx);
+		JSObjectRef ev = midorator_js_make_event(ctx, obj);
+		midorator_js_callprop(web_view, ctx, obj, "focus", 0, NULL);
+		midorator_js_callprop(web_view, ctx, obj, "select", 0, NULL);
+		bool r = midorator_js_handle(web_view, ctx, obj, "onclick", 1, &ev);
+		if (r) {
+			char *tagname = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "tagName"));
+			if (tagname) {
+				if (strcmp(tagname, "A") == 0) {
+					char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
+					if (href) {
+						midorator_process_command(web_view, "open %s", href);
+						free(href);
+					}
+				} else if (strcmp(tagname, "INPUT") == 0 || strcmp(tagname, "BUTTON") == 0 || strcmp(tagname, "TEXTAREA") == 0 || strcmp(tagname, "SELECT") == 0)
+					midorator_mode(web_view, 'i');
+				free(tagname);
+			}
+		}
+		return JSValueMakeNull(ctx);
+	} else if (JSStringIsEqualToUTF8CString(param, "tabnew")) {
+		JSStringRelease(param);
+		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
+			return JSValueMakeNull(ctx);
+		JSObjectRef obj = JSValueToObject(ctx, arguments[1], NULL);
+		if (!obj)
+			return JSValueMakeNull(ctx);
+		char *tagname = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "tagName"));
+		if (tagname) {
+			if (strcmp(tagname, "A") == 0) {
+				char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
+				if (href) {
+					midorator_process_command(web_view, "tabnew %s", href);
+					free(href);
+				}
+			}
+			free(tagname);
+		}
+		return JSValueMakeNull(ctx);
+	}
 	// TODO other commands
 
 	JSStringRelease(param);
@@ -552,12 +701,18 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
 		char *uri = midorator_make_uri(cmd + 1);
-		midorator_process_command(web_view, "js document.defaultView.open('%s', '_blank', 'toolbar=0');", uri);
+		g_signal_emit_by_name(gtk_widget_get_parent(gtk_widget_get_parent(web_view)), "new-tab", uri, false, NULL);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "open") == 0) {
 		char *uri = midorator_make_uri(cmd + 1);
-		midorator_process_command(web_view, "js document.location = '%s';", uri);
+		if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
+			char *js = g_uri_unescape_string(uri + strlen("javascript:"), NULL);
+			midorator_process_command(web_view, "js %s", js);
+			g_free(js);
+		} else
+			webkit_web_view_open(web_view, uri);
+		//midorator_process_command(web_view, "js document.location = '%s';", uri);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "paste") == 0) {
@@ -700,12 +855,12 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 			hintchars = "0123456789";
 		midorator_process_command(web_view, "js "
 #				include "uzbl-follow.h"
-				"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "true" : "false");
+				"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : "click");
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
 		midorator_process_command(web_view, "js "
 #				include "uzbl-follow.h"
-				"", "01", "a", "false");
+				"", "01", "a", "click");
 
 	} else if (strcmp(cmd[0], "reload") == 0) {
 		webkit_web_view_reload(WEBKIT_WEB_VIEW(web_view));
