@@ -1,9 +1,7 @@
 #if 0
 # /*
-	sed 's/"/\\"/g;s/%[^s]/%&/g;s/.*/"&\\n"/' uzbl-follow.js > uzbl-follow.h
-	sed 's/"/\\"/g;s/%[^s]/%&/g;s/.*/"&\\n"/' go-next.js > go-next.h
 	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
-	gcc "$0" -Iincludes -o "$(basename "$0" .c).so" -shared $(pkg-config gtk+-2.0 webkit-1.0 --cflags) || exit $?
+	make || exit 1
 	midori
 	exit 0
 # */
