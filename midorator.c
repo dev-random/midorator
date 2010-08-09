@@ -24,6 +24,10 @@ static GtkWidget *midorator_entry(GtkWidget* web_view, const char *text);
 static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...);
 static gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view);
 static GtkStatusbar* midorator_find_sb(GtkWidget *w);
+static char midorator_mode(GtkWidget* web_view, char mode);
+const char* midorator_options(const char *group, const char *name, const char *value);
+
+#include "keycodes.h"
 
 #undef g_signal_handlers_disconnect_by_func
 #define g_signal_handlers_disconnect_by_func(i, f, d) (g_signal_handlers_disconnect_matched((i), G_SIGNAL_MATCH_FUNC, 0, 0, NULL, (f), NULL))
@@ -138,7 +142,7 @@ void midorator_setclipboard(GdkAtom atom, const char *str) {
 		atom = GDK_SELECTION_PRIMARY;
 	GtkClipboard *c = gtk_clipboard_get(atom);
 	if (!c)
-		return NULL;
+		return;
 	gtk_clipboard_set_text(c, str, -1);
 }
 
@@ -181,11 +185,8 @@ static JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function, 
 	// Process commands
 	if (JSStringIsEqualToUTF8CString(param, "hide entry"))
 		midorator_entry(web_view, NULL);
-	else if (JSStringIsEqualToUTF8CString(param, "insert mode")) {
-		GdkEventKey e = {};
-		e.keyval = GDK_i;
-		midorator_key_press_event_cb(web_view, &e, NULL);
-	}
+	else if (JSStringIsEqualToUTF8CString(param, "insert mode"))
+		midorator_mode(web_view, 'n');
 	// TODO other commands
 
 	JSStringRelease(param);
@@ -283,7 +284,7 @@ static bool midorator_entry_restore_focus(GtkEntry* e) {
 	int p = gtk_editable_get_position(GTK_EDITABLE(e));
 	gtk_widget_grab_focus(GTK_WIDGET(e));
 	gtk_editable_set_position(GTK_EDITABLE(e), p);
-	return true;
+	return false;
 }
 
 // Used to fix focus. Sometimes after switching tabs, input focus remains on old tab
@@ -435,98 +436,65 @@ static char* midorator_make_uri(char **args) {
 	return ret;
 }
 
+static char midorator_mode(GtkWidget* web_view, char mode) {
+	static char oldmode = 'n';
+	if (mode)
+		oldmode = mode;
+	const char *modestring = "-- UNKNOWN MODE --";
+	if (oldmode == 'n')
+		modestring = "";
+	else if (oldmode == 'i')
+		modestring = "-- INSERT --";
+	if (web_view)
+		midorator_show_mode(web_view, modestring);
+	return oldmode;
+}
+
 static gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view) {
 	midorator_current_view(&web_view);
 	gtk_widget_grab_focus(web_view);
-	static bool insert = false;
+
+	bool insert = midorator_mode(web_view, 0) == 'i';
 	if (insert) {
 		if (event->keyval == GDK_Escape) {
-			insert = false;
-			midorator_show_mode(web_view, "");
+			midorator_mode(web_view, 'n');
 			return true;
 		} else
 			return false;
 	}
-	switch (event->keyval) {
-		case GDK_Escape:
-			webkit_web_view_execute_script(WEBKIT_WEB_VIEW(web_view), "document.activeElement.blur();");
+
+	static int numprefix = 0;
+	static char *sequence = NULL;
+	if (event->keyval >= GDK_0 && event->keyval <= GDK_9) {
+		numprefix = numprefix * 10 + event->keyval - GDK_0;
+		return true;
+	} else {
+		if (!sequence)
+			sequence = g_strdup_printf("%03x;", event->keyval);
+		else {
+			char *os = sequence;
+			sequence = g_strdup_printf("%s%03x;", os, event->keyval);
+			g_free(os);
+		}
+		const char *meaning = midorator_options("map", sequence, NULL);
+		if (!meaning || !meaning[0]) {
+			numprefix = 0;
+			g_free(sequence);
+			sequence = NULL;
 			return true;
-		case GDK_Tab:
+		} else if (strcmp(meaning, "wait") == 0) {
+			return true;
+		} else if (strcmp(meaning, "pass") == 0) {
 			return false;
-		case GDK_semicolon:
-			midorator_entry(web_view, ";");
+		} else {
+			int pr = numprefix;
+			numprefix = 0;
+			g_free(sequence);
+			sequence = NULL;
+			midorator_process_command(web_view, pr ? "%2$i%1$s" : "%s", meaning, pr);
 			return true;
-		case GDK_colon:
-			midorator_entry(web_view, ":");
-			return true;
-		case GDK_slash:
-			midorator_entry(web_view, "/");
-			return true;
-		case GDK_question:
-			midorator_entry(web_view, "?");
-			return true;
-		case GDK_bracketleft:
-			return midorator_process_command(web_view, "go prev");
-		case GDK_bracketright:
-			return midorator_process_command(web_view, "go next");
-		case GDK_r:
-			return midorator_process_command(web_view, "reload");
-		case GDK_R:
-			return midorator_process_command(web_view, "reload!");
-		case GDK_space:
-		case GDK_Page_Down:
-			return midorator_process_command(web_view, "scroll v + 1 p");
-		case GDK_Page_Up:
-			return midorator_process_command(web_view, "scroll v - 1 p");
-		case GDK_Up:
-		case GDK_k:
-			return midorator_process_command(web_view, "scroll v - 1");
-		case GDK_Down:
-		case GDK_j:
-			return midorator_process_command(web_view, "scroll v + 1");
-		case GDK_Home:
-			return midorator_process_command(web_view, "scroll v = 0");
-		case GDK_End:
-		case GDK_G:
-			return midorator_process_command(web_view, "scroll v = 32768 p");
-		case GDK_BackSpace:
-		case GDK_H:
-			return midorator_process_command(web_view, "go back");
-		case GDK_L:
-			return midorator_process_command(web_view, "go forth");
-		case GDK_p:
-			return midorator_process_command(web_view, "paste");
-		case GDK_P:
-			return midorator_process_command(web_view, "tabpaste");
-		case GDK_y:
-			return midorator_process_command(web_view, "yank");
-		case GDK_n:
-			midorator_search(web_view, NULL, true, false);
-			return true;
-		case GDK_N:
-			midorator_search(web_view, NULL, false, false);
-			return true;
-		case GDK_t:
-			midorator_entry(web_view, ":tabnew ");
-			return true;
-		case GDK_o:
-			midorator_entry(web_view, ":open ");
-			return true;
-		case GDK_f:
-			midorator_entry(web_view, ";f");
-			return true;
-		case GDK_F:
-			midorator_entry(web_view, ";F");
-			return true;
-		case GDK_i:
-			insert = true;
-			midorator_show_mode(web_view, _("-- INSERT --"));
-			return true;
-		default:
-			//printf("%i\n", event->keyval);
-			return true;
+		}
 	}
-	return false;
 }
 
 static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
@@ -546,10 +514,16 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 	int i, n = 0;
 	cmd[0] = buf;
 	cmd[1] = NULL;
+	bool inquote = false;
 	for (i=0; buf[i]; i++) {
-		if (&buf[i] == cmd[n] && buf[i] == ' ')
+		if (buf[i] == '"' && strcmp(cmd[0], "js") && strcmp(cmd[0], "cmdmap")) {
+			inquote = !inquote;
+			memmove(&buf[i], &buf[i+1], strlen(&buf[i]));
+		} else if (buf[i] == '\\' && buf[i+1]) {
+			memmove(&buf[i], &buf[i+1], strlen(&buf[i]));
+		} else if (&buf[i] == cmd[n] && buf[i] == ' ')
 			cmd[n]++;
-		else if (buf[i] == ' ') {
+		else if (buf[i] == ' ' && !inquote) {
 			buf[i] = 0;
 			n++;
 			if (n > 254)
@@ -557,6 +531,8 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 			cmd[n] = &buf[i+1];
 			cmd[n+1] = NULL;
 			if (n == 1 && strcmp(cmd[0], "js") == 0)
+				break;
+			if (n == 2 && strcmp(cmd[0], "cmdmap") == 0)
 				break;
 		}
 	}
@@ -568,6 +544,9 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 
 	} else if (strcmp(cmd[0], "widget") == 0 && cmd[1] && cmd[2] && cmd[3]) {
 		midorator_setprop(web_view, cmd[1], cmd[2], cmd[3]);
+
+	} else if (strcmp(cmd[0], "insert") == 0) {
+		midorator_mode(web_view, 'i');
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
 		char *uri = midorator_make_uri(cmd + 1);
@@ -606,6 +585,51 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 
 	} else if (strcmp(cmd[0], "set") == 0 && cmd[1] && cmd[2]) {
 		midorator_options("option", cmd[1], cmd[2]);
+
+	} else if (strcmp(cmd[0], "cmdmap") == 0 && cmd[1] && cmd[2]) {
+		char *buf = g_strdup("");
+		int i;
+		for (i=0; cmd[1][i]; i++) {
+			if (cmd[1][i] == '<') {
+				char *end = strchr(cmd[1] + i, '>');
+				if (!end) {
+					midorator_error(web_view, "Unfinished '<...>' in command 'cmdmap'");
+					g_free(buf);
+					free(cmd);
+					free(buf);
+					return false;
+				}
+				*end = 0;
+				const char *val = midorator_options("keycode", cmd[1] + i + 1, NULL);
+				if (!val) {
+					midorator_error(web_view, "Unknown key: <%s>", cmd[1] + i + 1);
+					g_free(buf);
+					free(cmd);
+					free(buf);
+					return false;
+				}
+				char *nbuf = g_strdup_printf("%s%03x;", buf, (int)strtol(val, NULL, 16));
+				g_free(buf);
+				buf = nbuf;
+				i = end - cmd[1];
+			} else {
+				char *nbuf = g_strdup_printf("%s%03x;", buf, cmd[1][i]);
+				g_free(buf);
+				buf = nbuf;
+			}
+			midorator_options("map", buf, "wait");
+		}
+		midorator_options("map", buf, cmd[2]);
+		g_free(buf);
+
+	} else if (strcmp(cmd[0], "next") == 0) {
+		midorator_search(web_view, NULL, true, false);
+
+	} else if (strcmp(cmd[0], "next!") == 0) {
+		midorator_search(web_view, NULL, false, false);
+
+	} else if (strcmp(cmd[0], "entry") == 0 && cmd[1]) {
+		midorator_entry(web_view, cmd[1]);
 
 	} else if (strcmp(cmd[0], "source") == 0 && cmd[1]) {
 		FILE *f = fopen(cmd[1], "r");
@@ -736,6 +760,42 @@ static void midorator_del_tab_cb (MidoriView* view, MidoriBrowser* browser) {
 		web_view, midorator_context_ready_cb, browser);
 }
 
+static void midorator_default_config (GtkWidget* web_view) {
+	midorator_process_command(web_view, "cmdmap : entry :");
+	midorator_process_command(web_view, "cmdmap <Tab> pass");
+	midorator_process_command(web_view, "cmdmap ; entry ;");
+	midorator_process_command(web_view, "cmdmap / entry /");
+	midorator_process_command(web_view, "cmdmap ? entry ?");
+	midorator_process_command(web_view, "cmdmap [[ go prev");
+	midorator_process_command(web_view, "cmdmap ]] go next");
+	midorator_process_command(web_view, "cmdmap r reload");
+	midorator_process_command(web_view, "cmdmap R reload!");
+	midorator_process_command(web_view, "cmdmap <space> scroll v + 1 p");
+	midorator_process_command(web_view, "cmdmap <Page_Down> scroll v + 1 p");
+	midorator_process_command(web_view, "cmdmap <Page_Up> scroll v - 1 p");
+	midorator_process_command(web_view, "cmdmap <Up> scroll v - 1");
+	midorator_process_command(web_view, "cmdmap k scroll v - 1");
+	midorator_process_command(web_view, "cmdmap <Down> scroll v + 1");
+	midorator_process_command(web_view, "cmdmap j scroll v + 1");
+	midorator_process_command(web_view, "cmdmap <Home> scroll v = 0");
+	midorator_process_command(web_view, "cmdmap gg scroll v = 0");
+	midorator_process_command(web_view, "cmdmap <End> scroll v = 32768 p");
+	midorator_process_command(web_view, "cmdmap G scroll v = 32768 p");
+	midorator_process_command(web_view, "cmdmap <BackSpace> go back");
+	midorator_process_command(web_view, "cmdmap H go back");
+	midorator_process_command(web_view, "cmdmap L go forth");
+	midorator_process_command(web_view, "cmdmap p paste");
+	midorator_process_command(web_view, "cmdmap P tabpaste");
+	midorator_process_command(web_view, "cmdmap y yank");
+	midorator_process_command(web_view, "cmdmap n next");
+	midorator_process_command(web_view, "cmdmap N next!");
+	midorator_process_command(web_view, "cmdmap t entry \":tabnew \"");
+	midorator_process_command(web_view, "cmdmap o entry \":open \"");
+	midorator_process_command(web_view, "cmdmap f entry ;f");
+	midorator_process_command(web_view, "cmdmap F entry ;F");
+	midorator_process_command(web_view, "cmdmap i insert");
+}
+
 static void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, MidoriExtension* extension) {
 	GtkWidget* web_view = midori_view_get_web_view (view);
 
@@ -749,6 +809,7 @@ static void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mido
 	static processed = false;
 	if (!processed) {
 		processed = true;
+		midorator_default_config(web_view);
 		midorator_process_command(web_view, "source ~/.midoratorrc");
 	}
 
@@ -795,6 +856,7 @@ static void midorator_activate_cb (MidoriExtension* extension, MidoriApp* app) {
 }
 
 MidoriExtension* extension_init() {
+	midorator_init_keycodes();
 	MidoriExtension* extension = g_object_new (
 		MIDORI_TYPE_EXTENSION,
 		"name", _("Midorator"),
