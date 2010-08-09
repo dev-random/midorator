@@ -333,6 +333,25 @@ static JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function, 
 			free(tagname);
 		}
 		return JSValueMakeNull(ctx);
+	} else if (JSStringIsEqualToUTF8CString(param, "yank")) {
+		JSStringRelease(param);
+		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
+			return JSValueMakeNull(ctx);
+		JSObjectRef obj = JSValueToObject(ctx, arguments[1], NULL);
+		if (!obj)
+			return JSValueMakeNull(ctx);
+		char *tagname = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "tagName"));
+		if (tagname) {
+			if (strcmp(tagname, "A") == 0) {
+				char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
+				if (href) {
+					midorator_setclipboard(GDK_SELECTION_PRIMARY, href);
+					free(href);
+				}
+			}
+			free(tagname);
+		}
+		return JSValueMakeNull(ctx);
 	}
 	// TODO other commands
 
@@ -855,7 +874,7 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 			hintchars = "0123456789";
 		midorator_process_command(web_view, "js "
 #				include "uzbl-follow.h"
-				"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : "click");
+				"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
 		midorator_process_command(web_view, "js "
