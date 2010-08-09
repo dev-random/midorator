@@ -902,6 +902,12 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 			webkit_web_view_go_forward(WEBKIT_WEB_VIEW(web_view));
 		}
 
+	} else if (strcmp(cmd[0], "undo") == 0) {
+		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
+		GtkActionGroup *actions = midori_browser_get_action_group(browser);
+		GtkAction *action = gtk_action_group_get_action(actions, "UndoTabClose");
+		gtk_action_activate(action);
+
 	} else {
 		midorator_error(web_view, "Invalid command or parameters: %s", cmd[0]);
 		free(cmd);
@@ -970,6 +976,7 @@ static void midorator_default_config (GtkWidget* web_view) {
 	midorator_process_command(web_view, "cmdmap f entry ;f");
 	midorator_process_command(web_view, "cmdmap F entry ;F");
 	midorator_process_command(web_view, "cmdmap i insert");
+	midorator_process_command(web_view, "cmdmap u undo");
 }
 
 static void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, MidoriExtension* extension) {
