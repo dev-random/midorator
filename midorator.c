@@ -309,15 +309,13 @@ static void midorator_current_view(GtkWidget **web_view) {
 }
 
 static GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
-	// Find vbox
-	GtkWidget *w;
-	for (w = web_view; w && !GTK_IS_NOTEBOOK(w); w = gtk_widget_get_parent(w));
-	GtkNotebook *n = GTK_NOTEBOOK(w);
-	for (/*w = w*/; w && !GTK_IS_VBOX(w); w = gtk_widget_get_parent(w));
-	if (!w)
-		return NULL;
+	// Find box
+	GtkStatusbar *sb = midorator_find_sb(web_view);
+	if (!sb)
+		return;
+	GtkWidget *w = gtk_statusbar_get_message_area(sb);
 
-	// Remove existing entry from vbox
+	// Remove existing entry from box
 	GList *l = gtk_container_get_children(GTK_CONTAINER(w));
 	GList *li;
 	for (li = l; li; li = li->next)
@@ -326,14 +324,20 @@ static GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
 	g_list_free(l);
 
 	// Add new entry
-	if (text) {
+	if (text && text[0]) {
 		GtkWidget *e = gtk_entry_new();
+		gtk_entry_set_has_frame(GTK_ENTRY(e), false);
 		g_object_set(gtk_settings_get_default(), "gtk-entry-select-on-focus", FALSE, NULL);
-		gtk_box_pack_end(GTK_BOX(w), e, 0, 0, 0);
+		gtk_box_pack_start(GTK_BOX(w), e, true, true, 0);
 		gtk_widget_show(e);
 		gtk_entry_set_text(GTK_ENTRY(e), text);
 		gtk_widget_grab_focus(e);
 		gtk_editable_set_position(GTK_EDITABLE(e), -1);
+		gtk_box_reorder_child(GTK_BOX(w), e, 0);
+		gtk_widget_modify_base(e, GTK_STATE_NORMAL, &w->style->bg[0]);
+		gtk_widget_modify_base(e, GTK_STATE_ACTIVE, &w->style->bg[0]);
+		gtk_widget_modify_bg(e, GTK_STATE_NORMAL, &w->style->bg[0]);
+		gtk_widget_modify_bg(e, GTK_STATE_ACTIVE, &w->style->bg[0]);
 		g_signal_connect (e, "changed",
 			G_CALLBACK (midorator_entry_edited_cb), web_view);
 		g_signal_connect (e, "key-press-event",
