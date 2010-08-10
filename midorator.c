@@ -23,6 +23,7 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 static gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view);
 static GtkStatusbar* midorator_find_sb(GtkWidget *w);
 static char midorator_mode(GtkWidget* web_view, char mode);
+static void midorator_message(GtkWidget* web_view, const char *message, const char *bg, const char *fg);
 const char* midorator_options(const char *group, const char *name, const char *value);
 
 #include "keycodes.h"
@@ -34,9 +35,10 @@ const char* midorator_options(const char *group, const char *name, const char *v
 void midorator_error(GtkWidget *web_view, char *fmt, ...) {
 	va_list l;
 	va_start(l, fmt);
-	vfprintf(stderr, fmt, l);
-	fprintf(stderr, "\n");
+	char *msg = g_strdup_vprintf(fmt, l);
 	va_end(l);
+	midorator_message(web_view, msg, "red", "black");
+	g_free(msg);
 }
 
 // Sets option (if "value" is non-NULL) and returns its value.
@@ -397,6 +399,58 @@ static GtkStatusbar* midorator_find_sb(GtkWidget *w) {
 	return NULL;
 }
 
+static void midorator_message(GtkWidget* web_view, const char *message, const char *bg, const char *fg) {
+	GtkWidget *w;
+	for (w = web_view; w && !GTK_IS_VBOX(w); w = gtk_widget_get_parent(w));
+	if (!w)
+		return;
+
+	GList *l = gtk_container_get_children(GTK_CONTAINER(w));
+	GList *li;
+	for (li = l; li; li = li->next)
+		if (GTK_IS_LABEL(li->data) && strcmp(gtk_widget_get_name(GTK_WIDGET(li->data)), "midorator_message_area") == 0)
+			break;
+
+	GtkLabel *lab;
+	if (li)
+		lab = GTK_LABEL(li->data);
+	else {
+		lab = gtk_label_new(NULL);
+		gtk_widget_set_name(GTK_WIDGET(lab), "midorator_message_area");
+		gtk_box_pack_start(GTK_BOX(w), GTK_WIDGET(lab), false, true, 0);
+		gtk_widget_show(GTK_WIDGET(lab));
+		gtk_label_set_markup(lab, "");
+		gtk_label_set_selectable(lab, true);
+		gtk_misc_set_alignment(lab, 0, 0);
+	}
+	g_list_free(l);
+
+	if (message) {
+		char *text;
+		if (bg) {
+			if (fg)
+				text = g_markup_printf_escaped("<span color=\"%s\" bgcolor=\"%s\">%s\n</span>", fg, bg, message);
+			else
+				text = g_markup_printf_escaped("<span bgcolor=\"%s\">%s\n</span>", bg, message);
+		} else {
+			if (fg)
+				text = g_markup_printf_escaped("<span color=\"%s\">%s\n</span>", fg, message);
+			else
+				text = g_markup_printf_escaped("%s\n", message);
+		}
+
+		const char *oldtext = gtk_label_get_label(lab);
+		char *fulltext = g_strconcat(oldtext, text, NULL);
+		g_free(text);
+		gtk_label_set_markup(lab, fulltext);
+		g_free(fulltext);
+		gtk_widget_show(GTK_WIDGET(lab));
+	} else {
+		gtk_widget_hide(GTK_WIDGET(lab));
+		gtk_label_set_markup(lab, "");
+	}
+}
+
 static void midorator_search(GtkWidget* web_view, const char *match, bool forward, bool remember) {
 	static char *lastmatch = NULL;
 	if (match && remember) {
@@ -621,6 +675,7 @@ static char midorator_mode(GtkWidget* web_view, char mode) {
 }
 
 static gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view) {
+	midorator_message(web_view, NULL, NULL, NULL);
 	midorator_current_view(&web_view);
 	gtk_widget_grab_focus(web_view);
 
@@ -868,13 +923,15 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 			webkit_web_view_execute_script(WEBKIT_WEB_VIEW(web_view), cmd[i]);
 		}
 
-	} else if (strcmp(cmd[0], "hint") == 0 && cmd[1] && cmd[1][0]) {
-		const char *hintchars = midorator_options("option", "hintchars", NULL);
-		if (!hintchars)
-			hintchars = "0123456789";
-		midorator_process_command(web_view, "js "
-#				include "uzbl-follow.h"
-				"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
+	} else if (strcmp(cmd[0], "hint") == 0) {
+		if (cmd[1] && cmd[1][0]) {
+			const char *hintchars = midorator_options("option", "hintchars", NULL);
+			if (!hintchars)
+				hintchars = "0123456789";
+			midorator_process_command(web_view, "js "
+#					include "uzbl-follow.h"
+					"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
+		}
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
 		midorator_process_command(web_view, "js "
