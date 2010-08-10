@@ -914,6 +914,15 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 		GtkAction *action = gtk_action_group_get_action(actions, "TabClose");
 		gtk_action_activate(action);
 
+	} else if (strcmp(cmd[0], "action") == 0 && cmd[1]) {
+		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
+		GtkActionGroup *actions = midori_browser_get_action_group(browser);
+		GtkAction *action = gtk_action_group_get_action(actions, cmd[1]);
+		if (action)
+			gtk_action_activate(action);
+		else
+			midorator_error(web_view, "No such action: '%s'", cmd[1]);
+
 	} else {
 		midorator_error(web_view, "Invalid command or parameters: %s", cmd[0]);
 		free(cmd);
