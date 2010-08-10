@@ -429,14 +429,14 @@ static void midorator_message(GtkWidget* web_view, const char *message, const ch
 		char *text;
 		if (bg) {
 			if (fg)
-				text = g_markup_printf_escaped("<span color=\"%s\" bgcolor=\"%s\">%s\n</span>", fg, bg, message);
+				text = g_markup_printf_escaped("<span color=\"%s\" bgcolor=\"%s\">  %s  \n</span>", fg, bg, message);
 			else
-				text = g_markup_printf_escaped("<span bgcolor=\"%s\">%s\n</span>", bg, message);
+				text = g_markup_printf_escaped("<span bgcolor=\"%s\">  %s  \n</span>", bg, message);
 		} else {
 			if (fg)
-				text = g_markup_printf_escaped("<span color=\"%s\">%s\n</span>", fg, message);
+				text = g_markup_printf_escaped("<span color=\"%s\">  %s  \n</span>", fg, message);
 			else
-				text = g_markup_printf_escaped("%s\n", message);
+				text = g_markup_printf_escaped("  %s  \n", message);
 		}
 
 		const char *oldtext = gtk_label_get_label(lab);
