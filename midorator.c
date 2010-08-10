@@ -981,6 +981,21 @@ static bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...)
 		else
 			midorator_error(web_view, "No such action: '%s'", cmd[1]);
 
+	} else if (strcmp(cmd[0], "actions") == 0) {
+		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
+		GtkActionGroup *actions = midori_browser_get_action_group(browser);
+		midorator_message(web_view, "Known actions are:", NULL, NULL);
+		int sid = g_signal_lookup("activate", GTK_TYPE_ACTION);
+		GList *l = gtk_action_group_list_actions(actions);
+		GList *li;
+		for (li = l; li; li = li->next)
+			if (gtk_action_is_sensitive(GTK_ACTION(li->data))) {
+				char *msg = g_strdup_printf("%s - %s", gtk_action_get_name(GTK_ACTION(li->data)), gtk_action_get_label(GTK_ACTION(li->data)));
+				midorator_message(web_view, msg, NULL, NULL);
+				g_free(msg);
+			}
+		g_list_free(l);
+
 	} else {
 		midorator_error(web_view, "Invalid command or parameters: %s", cmd[0]);
 		free(cmd);
