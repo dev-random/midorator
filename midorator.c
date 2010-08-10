@@ -487,14 +487,15 @@ static gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* ev
 		midorator_entry(web_view, NULL);
 		return true;
 	} else if (event->keyval == GDK_Return) {
-		const char *t = gtk_entry_get_text(e);
+		char *t = g_strdup(gtk_entry_get_text(e));
+		midorator_entry(web_view, NULL);
 		if (t[0] == ':')
 			midorator_process_command(web_view, "%s", t + 1);
 		else if (t[0] == ';')
 			midorator_process_command(web_view, "hint %s", t + 1);
 		else if (t[0] == '/')
 			midorator_search(web_view, t + 1, true, true);
-		midorator_entry(web_view, NULL);
+		g_free(t);
 		return true;
 	} else
 		return false;
