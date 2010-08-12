@@ -1155,6 +1155,10 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	if (event->keyval >= GDK_0 && event->keyval <= GDK_9) {
 		numprefix = numprefix * 10 + event->keyval - GDK_0;
 		return true;
+	} else if (event->keyval == GDK_Shift_L || event->keyval == GDK_Shift_R ||
+			event->keyval == GDK_Alt_L || event->keyval == GDK_Alt_R ||
+			event->keyval == GDK_Control_L || event->keyval == GDK_Control_R) {
+		// Do nothing
 	} else {
 		if (!sequence)
 			sequence = g_strdup_printf("%03x;", event->keyval);
@@ -1521,6 +1525,8 @@ static_f void midorator_default_config (GtkWidget* web_view) {
 	midorator_process_command(web_view, "cmdmap i insert");
 	midorator_process_command(web_view, "cmdmap u undo");
 	midorator_process_command(web_view, "cmdmap d q");
+	midorator_process_command(web_view, "cmdmap gt action TabNext");
+	midorator_process_command(web_view, "cmdmap gT action TabPrevious");
 	midorator_process_command(web_view, "set hintstyle "
 			"background-color: #59FF00; "
 			"border: 2px solid #4A6600; "
