@@ -9,22 +9,8 @@
  * TODO: Some positions are not calculated correctly (mostly
  * because of uber-fancy-designed-webpages. Basic HTML and CSS
  * works good
- * ----: Still some links can't be followed/unexpected things
- * happen. Blame some freaky webdesigners ;) [FIXED!]
  */
 
-//Just some shortcuts and globals
-var uzblid = 'uzbl_link_hint';
-var uzbldivid = uzblid + '_div_container';
-var doc = document;
-var win = window;
-var links = document.links;
-var forms = document.forms;
-
-//Make items "clickable"
-HTMLElement.prototype.click = function(command) {
-	return midorator_command(command, this);
-};
 
 //Calculate element position to draw the hint
 //Pretty accurate but on fails in some very fancy cases
@@ -42,7 +28,7 @@ function elementPosition(el) {
 }
 //Calculate if an element is visible
 function isVisible(el) {
-    if (el == doc) {
+    if (!el.ownerDocument) {
         return true;
     }
     if (!el) {
@@ -62,106 +48,37 @@ function isVisible(el) {
     return isVisible(el.parentNode);
 }
 //Calculate if an element is on the viewport.
-function elementInViewport(el) {
+function elementInViewport(el, w) {
     offset = elementPosition(el);
     var up = offset[0];
     var left = offset[1];
     var width = offset[2];
     var height = offset[3];
-    return up < window.pageYOffset + window.innerHeight && left < window.pageXOffset + window.innerWidth && (up + height) > window.pageYOffset && (left + width) > window.pageXOffset;
-}
-//Removes all hints/leftovers that might be generated
-//by this script.
-function removeAllHints() {
-    var elements = doc.getElementById(uzbldivid);
-    if (elements) {
-        elements.parentNode.removeChild(elements);
-    }
-}
-//Generate a hint for an element with the given label
-//Here you can play around with the style of the hints!
-function generateHint(el, label) {
-    var pos = elementPosition(el);
-    var hint = doc.createElement('div');
-    hint.setAttribute('name', uzblid);
-    hint.innerText = label;
-    hint.style.display = 'inline';
-    hint.style.backgroundColor = '#B9FF00';
-    hint.style.border = '2px solid #4A6600';
-    hint.style.color = 'black';
-    hint.style.fontSize = '9px';
-    hint.style.fontWeight = 'bold';
-    hint.style.lineHeight = '9px';
-    hint.style.margin = '0px';
-    hint.style.width = 'auto'; // fix broken rendering on w3schools.com
-    hint.style.padding = '1px';
-    hint.style.position = 'absolute';
-    hint.style.zIndex = '1000';
-    // hint.style.textTransform = 'uppercase';
-    hint.style.left = pos[1] + 'px';
-    hint.style.top = pos[0] + 'px';
-    // var img = el.getElementsByTagName('img');
-    // if (img.length > 0) {
-    //     hint.style.top = pos[1] + img[0].height / 2 - 6 + 'px';
-    // }
-    hint.style.textDecoration = 'none';
-    // hint.style.webkitBorderRadius = '6px'; // slow
-    // Play around with this, pretty funny things to do :)
-    // hint.style.webkitTransform = 'scale(1) rotate(0deg) translate(-6px,-5px)';
-    return hint;
+    return up < w.pageYOffset + w.innerHeight && left < w.pageXOffset + w.innerWidth && (up + height) > w.pageYOffset && (left + width) > w.pageXOffset;
 }
 //Here we choose what to do with an element if we
 //want to "follow" it. On form elements we "select"
 //or pass the focus, on links we try to perform a click,
 //but at least set the href of the link. (needs some improvements)
 function clickElem(item, command) {
-	removeAllHints();
+	midorator_command("delhints");
 	midorator_command('hide entry');
 	if (item) {
-		item.click(command);
+		if (item.click)
+			item.click();
+		else
+			midorator_command(command, item);
 	}
-}
-//Returns a list of all links (in this version
-//just the elements itself, but in other versions, we
-//add the label here.
-function addLinks() {
-    res = [[], []];
-    for (var l = 0; l < links.length; l++) {
-        var li = links[l];
-        if (isVisible(li) && elementInViewport(li)) {
-            res[0].push(li);
-        }
-    }
-    return res;
-}
-//Same as above, just for the form elements
-function addFormElems() {
-    res = [[], []];
-    for (var f = 0; f < forms.length; f++) {
-        for (var e = 0; e < forms[f].elements.length; e++) {
-            var el = forms[f].elements[e];
-            if (el && ['INPUT', 'TEXTAREA', 'SELECT'].indexOf(el.tagName) + 1 && isVisible(el) && elementInViewport(el)) {
-                res[0].push(el);
-            }
-        }
-    }
-    return res;
 }
 //Draw all hints for all elements passed. "len" is for
 //the number of chars we should use to avoid collisions
 function reDrawHints(elems, chars) {
-    removeAllHints();
-    var hintdiv = doc.createElement('div');
-    hintdiv.setAttribute('id', uzbldivid);
+    midorator_command("delhints");
     for (var i = 0; i < elems[0].length; i++) {
         if (elems[0][i]) {
             var label = elems[1][i].substring(chars);
-            var h = generateHint(elems[0][i], label);
-            hintdiv.appendChild(h);
+            var h = midorator_command('genhint', elems[0][i], label);
         }
-    }
-    if (document.body) {
-        document.body.appendChild(hintdiv);
     }
 }
 // pass: number of keys
@@ -201,17 +118,14 @@ function labelToInt(label) {
 	return n;
 }
 //Put it all together
-function followLinks(follow, newtab) {
+function followLinks(follow, command) {
     var s = follow.split('');
     var linknr = labelToInt(follow);
-    var linkelems = addLinks();
-    var formelems = addFormElems();
-    var elems = [linkelems[0].concat(formelems[0]), linkelems[1].concat(formelems[1])];
+    var elems = [ midorator_command('getelems', command), [] ];
     var len = labelLength(elems[0].length);
-    var oldDiv = doc.getElementById(uzbldivid);
     var leftover = [[], []];
     if (s.length == len && linknr < elems[0].length && linknr >= 0) {
-        clickElem(elems[0][linknr], newtab);
+        clickElem(elems[0][linknr], command);
     } else {
         for (var j = 0; j < elems[0].length; j++) {
             var b = true;
@@ -232,6 +146,6 @@ function followLinks(follow, newtab) {
     }
 }
 
-//Parse input: first argument is follow keys, second is user input.
 var charset = '%s';
 followLinks('%s', '%s');
+
