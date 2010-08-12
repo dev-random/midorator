@@ -26,36 +26,6 @@ function elementPosition(el) {
     }
     return [up, left, width, height];
 }
-//Calculate if an element is visible
-function isVisible(el) {
-    if (!el.ownerDocument) {
-        return true;
-    }
-    if (!el) {
-        return false;
-    }
-    if (!el.parentNode) {
-        return false;
-    }
-    if (el.style) {
-        if (el.style.display == 'none') {
-            return false;
-        }
-        if (el.style.visibility == 'hidden') {
-            return false;
-        }
-    }
-    return isVisible(el.parentNode);
-}
-//Calculate if an element is on the viewport.
-function elementInViewport(el, w) {
-    offset = elementPosition(el);
-    var up = offset[0];
-    var left = offset[1];
-    var width = offset[2];
-    var height = offset[3];
-    return up < w.pageYOffset + w.innerHeight && left < w.pageXOffset + w.innerWidth && (up + height) > w.pageYOffset && (left + width) > w.pageXOffset;
-}
 //Here we choose what to do with an element if we
 //want to "follow" it. On form elements we "select"
 //or pass the focus, on links we try to perform a click,
