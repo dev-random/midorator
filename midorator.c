@@ -676,6 +676,94 @@ static_f GtkWidget* midorator_js_get_wv(JSContextRef ctx) {
 	return web_view;
 }
 
+static_f void midorator_js_form_click(JSContextRef ctx, JSObjectRef item, bool force_submit) {
+	if (!item)
+		return;
+	char *tagname = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "tagName"));
+	if (!tagname)
+		return;
+
+	JSObjectRef form;
+	if (g_ascii_strcasecmp(tagname, "form") == 0)
+		form = item;
+	else
+		form = midorator_js_v2o(ctx, midorator_js_getprop(ctx, item, "form"));
+	free(tagname);
+
+	if (item != form) {
+		midorator_js_callprop(ctx, item, "focus", 0, NULL);
+		midorator_mode(midorator_js_get_wv(ctx), 'i');
+		if (!force_submit) {
+			midorator_js_callprop(ctx, item, "click", 0, NULL);
+			return;
+		}
+		/*char *type = midorator_js_getattr(ctx, item, "type");
+		if (g_ascii_strcasecmp(type, "submit") == 0)
+			submit = true;
+		else if (g_ascii_strcasecmp(type, "reset") == 0)
+			midorator_js_callprop(ctx, form, "reset", 0, NULL);
+		free(type);*/
+	}
+
+	if (form) {
+		if (!force_submit && JSValueToObject(ctx, midorator_js_getprop(ctx, form, "onsubmit"), NULL)) {
+			JSValueRef ev = midorator_js_make_event(ctx, form);
+			if (midorator_js_handle(ctx, form, "onsubmit", 1, &ev))
+				return;
+		}
+		// TODO: do something with "name=value" of button
+		midorator_js_callprop(ctx, form, "submit", 0, NULL);
+	}
+}
+
+static_f void midorator_js_script(JSContextRef ctx, const char *code) {
+	JSStringRef scode = JSStringCreateWithUTF8CString(code);
+	JSValueRef e = NULL;
+	JSEvaluateScript(ctx, scode, NULL, NULL, 0, &e);
+	JSStringRelease(scode);
+	midorator_js_error(ctx, e, NULL);
+}
+
+static_f void midorator_js_open(JSContextRef ctx, const char *href, JSObjectRef frame) {
+	if (strncmp(href, "javascript:", strlen("javascript:")) == 0) {
+		midorator_js_script(ctx, href + strlen("javascript:"));
+		return;
+	}
+	JSObjectRef location = JSValueToObject(ctx, midorator_js_getprop(ctx, frame, "location"), NULL);
+	if (!location)
+		return;
+	JSStringRef uri = JSStringCreateWithUTF8CString(href);
+	JSValueRef vuri = JSValueMakeString(ctx, uri);
+	midorator_js_callprop(ctx, location, "assign", 1, &vuri);
+	JSStringRelease(uri);
+}
+
+static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item) {
+	if (JSValueToObject(ctx, midorator_js_getprop(ctx, item, "form"), NULL)) {
+		midorator_js_form_click(ctx, item, false);
+		return;
+	}
+	midorator_js_callprop(ctx, item, "focus", 0, NULL);
+	JSValueRef ev = midorator_js_make_event(ctx, item);
+	bool r = midorator_js_handle(ctx, item, "onclick", 1, &ev);
+	if (!r)
+		return;
+	char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "href"));
+	if (!href)
+		return;
+	char *tg = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "target"));
+	if (tg && !tg[0]) {
+		free(tg);
+		midorator_js_open(ctx, href, NULL);
+	} else if (tg) {
+		JSObjectRef frame = midorator_js_find_frame(ctx, tg);
+		midorator_js_open(ctx, href, frame);
+		free(tg);
+	} else
+		midorator_js_open(ctx, href, NULL);
+	free(href);
+}
+
 static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
 	if (argumentCount < 1 || !JSValueIsString(ctx, arguments[0]))
 		return JSValueMakeNull(ctx);
@@ -697,44 +785,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 		JSObjectRef obj = JSValueToObject(ctx, arguments[1], NULL);
 		if (!obj)
 			return JSValueMakeNull(ctx);
-		JSValueRef ev = midorator_js_make_event(ctx, obj);
-		midorator_js_callprop(ctx, obj, "focus", 0, NULL);
-		midorator_js_callprop(ctx, obj, "select", 0, NULL);
-		bool r = midorator_js_handle(ctx, obj, "onclick", 1, &ev);
-		if (r) {
-//fprintf(stderr, "%s():%i, %i\n", __func__, __LINE__, (int)time(NULL));
-			char *tagname = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "tagName"));
-			if (tagname) {
-				if (strcmp(tagname, "A") == 0) {
-					char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
-					if (href) {
-						char *tg = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "target"));
-						if (tg && !tg[0]) {
-							free(tg);
-							midorator_process_command(web_view, "open %s", href);
-						} else if (tg) {
-							JSObjectRef frame = midorator_js_find_frame(ctx, tg);
-							if (frame) {
-								JSObjectRef location = JSValueToObject(ctx, midorator_js_getprop(ctx, frame, "location"), NULL);
-								if (location) {
-									JSStringRef uri = JSStringCreateWithUTF8CString(href);
-									JSValueRef vuri = JSValueMakeString(ctx, uri);
-									midorator_js_callprop(ctx, location, "assign", 1, &vuri);
-									JSStringRelease(uri);
-								} else
-									midorator_process_command(web_view, "open %s", href);
-							} else
-								midorator_process_command(web_view, "open %s", href);
-							free(tg);
-						} else
-							midorator_process_command(web_view, "open %s", href);
-						free(href);
-					}
-				} else if (strcmp(tagname, "INPUT") == 0 || strcmp(tagname, "BUTTON") == 0 || strcmp(tagname, "TEXTAREA") == 0 || strcmp(tagname, "SELECT") == 0)
-					midorator_mode(web_view, 'i');
-				free(tagname);
-			}
-		}
+		midorator_js_click(ctx, obj);
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "tabnew")) {
 		JSStringRelease(param);
@@ -829,6 +880,25 @@ static_f void midorator_make_js_callback(JSContextRef ctx, GtkWidget *web_view) 
 
 	JSStringRelease(s);
 	JSStringRelease(sw);
+}
+
+static_f void midorator_submit_form(GtkWidget* web_view) {
+	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
+	if (!frame)
+		return;
+	JSGlobalContextRef ctx = webkit_web_frame_get_global_context(frame);
+	if (!ctx)
+		return;
+	JSObjectRef doc = midorator_js_v2o(ctx, midorator_js_getprop(ctx, NULL, "document"));
+	if (!doc)
+		return;
+	JSObjectRef elem = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "activeElement"));
+	if (!elem)
+		return;
+	JSObjectRef form = midorator_js_v2o(ctx, midorator_js_getprop(ctx, elem, "form"));
+	if (!form)
+		return;
+	midorator_js_form_click(ctx, form, true);
 }
 
 static_f GtkStatusbar* midorator_find_sb(GtkWidget *w) {
@@ -1339,6 +1409,9 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 				midorator_process_command(web_view, "%s", buf);
 			fclose(f);
 		}
+
+	} else if (strcmp(cmd[0], "submit") == 0) {
+		midorator_submit_form(web_view);
 
 	} else if (strcmp(cmd[0], "scroll") == 0) {
 		if (!cmd[1][0] || !cmd[2][0] || !cmd[3][0]) {

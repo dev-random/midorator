@@ -33,12 +33,7 @@ function elementPosition(el) {
 function clickElem(item, command) {
 	midorator_command("delhints");
 	midorator_command('hide entry');
-	if (item) {
-		if (item.click)
-			item.click();
-		else
-			midorator_command(command, item);
-	}
+	midorator_command(command, item);
 }
 //Draw all hints for all elements passed. "len" is for
 //the number of chars we should use to avoid collisions
