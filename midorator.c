@@ -950,7 +950,7 @@ static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const ch
 			n = dt.quot;
 		}
 //fprintf(stderr, "%s\n", text);
-		midorator_js_genhint(ctx, midorator_js_v2o(ctx, iter.val), text);
+		midorator_js_genhint(ctx, midorator_js_v2o(ctx, iter.val), text + strlen(follow));
 	}
 }
 

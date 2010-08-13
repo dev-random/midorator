@@ -2,7 +2,7 @@
 #ifndef MIDORATOR_H
 #define MIDORATOR_H
 
-#define MIDORATOR_VERSION "0.020100813"
+#define MIDORATOR_VERSION "0.020100814"
 
 #endif
 
