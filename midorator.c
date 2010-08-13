@@ -293,6 +293,21 @@ static_f JSObjectRef midorator_js_make_event(JSContextRef ctx, JSObjectRef obj) 
 	return ret;
 }
 
+static_f bool midorator_js_is_js_enabled(JSContextRef ctx) {
+	GtkWidget *web_view = midorator_js_get_wv(ctx);
+	if (!web_view)
+		return false;
+	GtkWidget *view = gtk_widget_get_parent(gtk_widget_get_parent(web_view));
+	MidoriWebSettings* settings = katze_object_get_object (web_view, "settings");
+	if (!settings) {
+		MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
+		MidoriWebSettings* settings = katze_object_get_object (browser, "settings");
+		if (!settings)
+			return false;
+	}
+	return katze_object_get_boolean(settings, "enable-scripts");
+}
+
 static_f JSValueRef midorator_js_callprop(JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
 	JSValueRef prop = midorator_js_getprop(ctx, obj, name);
 	if (!prop || !JSValueIsObject(ctx, prop)) {
@@ -314,6 +329,8 @@ static_f JSValueRef midorator_js_callprop(JSContextRef ctx, JSObjectRef obj, con
 }
 
 static_f bool midorator_js_handle(JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
+	if (!midorator_js_is_js_enabled(ctx))
+		return true;
 	if (argc) {
 		JSObjectRef window = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "window"), NULL);
 		JSStringRef sw = JSStringCreateWithUTF8CString("event");
@@ -370,13 +387,18 @@ static_f midorator_js_array_iter midorator_js_array_prev(midorator_js_array_iter
 	return iter;
 }
 
-static_f midorator_js_array_iter midorator_js_array_first(JSContextRef ctx, JSObjectRef arr) {
+static_f midorator_js_array_iter midorator_js_array_nth(JSContextRef ctx, JSObjectRef arr, int n) {
 	midorator_js_array_iter ret = {NULL, ctx, arr, -1, 0};
 	JSValueRef len = midorator_js_getprop(ctx, arr, "length");
 	if (!len || !JSValueIsNumber(ctx, len))
 		return ret;
 	ret.length = (int)JSValueToNumber(ctx, len, NULL);
+	ret.index = n - 1;
 	return midorator_js_array_next(ret);
+}
+
+static_f midorator_js_array_iter midorator_js_array_first(JSContextRef ctx, JSObjectRef arr) {
+	return midorator_js_array_nth(ctx, arr, 1);
 }
 
 static_f midorator_js_array_iter midorator_js_array_last(JSContextRef ctx, JSObjectRef arr) {
@@ -716,17 +738,21 @@ static_f void midorator_js_form_click(JSContextRef ctx, JSObjectRef item, bool f
 	}
 }
 
-static_f void midorator_js_script(JSContextRef ctx, const char *code) {
+static_f void midorator_js_script(JSContextRef ctx, const char *code, int force) {
+	if (!force && !midorator_js_is_js_enabled(ctx))
+		return;
 	JSStringRef scode = JSStringCreateWithUTF8CString(code);
 	JSValueRef e = NULL;
 	JSEvaluateScript(ctx, scode, NULL, NULL, 0, &e);
 	JSStringRelease(scode);
-	midorator_js_error(ctx, e, NULL);
+	midorator_js_error(ctx, e, code);
 }
 
 static_f void midorator_js_open(JSContextRef ctx, const char *href, JSObjectRef frame) {
 	if (strncmp(href, "javascript:", strlen("javascript:")) == 0) {
-		midorator_js_script(ctx, href + strlen("javascript:"));
+		char *js = g_uri_unescape_string(href + strlen("javascript:"), NULL);
+		midorator_js_script(ctx, js, false);
+		g_free(js);
 		return;
 	}
 	JSObjectRef location = JSValueToObject(ctx, midorator_js_getprop(ctx, frame, "location"), NULL);
@@ -762,6 +788,23 @@ static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item) {
 	} else
 		midorator_js_open(ctx, href, NULL);
 	free(href);
+}
+
+static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const char *text) {
+	JSObjectRef hint = midorator_js_create_element(ctx, "div", el);
+	if (!hint)
+		return JSValueMakeNull(ctx);
+	midorator_js_setstrprop(ctx, hint, "innerText", text);
+	midorator_js_setattr(ctx, hint, "name", "midorator_hint");
+	const char *css = midorator_options("option", "hintstyle", NULL);
+	char *fullstyle = g_strconcat(
+			"width:auto; height:auto; text-decoration:none; font-weight:normal; margin:0; padding:0; border:none; font-style:normal; font-family: Terminus monospace fixed; ",
+			css,
+			"display:inline-block !important; position:absolute !important;",
+			NULL);
+	midorator_js_setattr(ctx, hint, "style", fullstyle);
+	g_free(fullstyle);
+	return hint;
 }
 
 static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
@@ -831,21 +874,9 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 		if (argumentCount < 3 || !JSValueIsObject(ctx, arguments[1]) || !JSValueIsString(ctx, arguments[2]))
 			return JSValueMakeNull(ctx);
 		JSObjectRef el = JSValueToObject(ctx, arguments[1], NULL);
-		JSObjectRef hint = midorator_js_create_element(ctx, "div", el);
-		if (!hint)
-			return JSValueMakeNull(ctx);
 		char *text = midorator_js_value_to_string(ctx, arguments[2]);
-		midorator_js_setstrprop(ctx, hint, "innerText", text);
-		midorator_js_setattr(ctx, hint, "name", "midorator_hint");
-		const char *css = midorator_options("option", "hintstyle", NULL);
-		char *fullstyle = g_strconcat(
-				"width:auto; height:auto; text-decoration:none; font-weight:normal; margin:0; padding:0; border:none; font-style:normal; font-family: Terminus monospace fixed; ",
-				css,
-				"display:inline-block !important; position:absolute !important;",
-				NULL);
-		midorator_js_setattr(ctx, hint, "style", fullstyle);
-		g_free(fullstyle);
-
+		JSValueRef hint = midorator_js_genhint(ctx, el, text);
+		free(text);
 		return hint;
 	} else if (JSStringIsEqualToUTF8CString(param, "getelems")) {
 		JSStringRelease(param);
@@ -854,7 +885,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 		free(s);
 		return v;
 	} else if (JSStringIsEqualToUTF8CString(param, "delhints")) {
-		midorator_js_delhints(ctx, JSContextGetGlobalObject(ctx));
+		midorator_js_delhints(ctx, NULL);
 	}
 	// TODO other commands
 
@@ -862,13 +893,74 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 	return JSValueMakeNull(ctx);
 }
 
+static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const char *follow, const char *cmd) {
+	int i;
+	midorator_js_delhints(ctx, NULL);
+
+	if (!charset || !follow || !cmd)
+		return;
+
+	if (follow[strspn(follow, charset)])
+		return;	// invalid char entered
+
+	int cslen = strlen(charset);
+	if (cslen < 2)
+		return;
+
+	JSObjectRef elems = midorator_js_v2o(ctx, midorator_js_find_elements(ctx, cmd));
+	if (!elems)
+		return;
+
+	midorator_js_array_iter iter = midorator_js_array_first(ctx, elems);
+	int count = iter.length;
+	int keylen = 0;
+	for (i = count - 1; i; i = div(i, cslen).quot)
+		keylen++;
+	if (keylen == 0)
+		keylen = 1;
+
+	int num = 0;
+	for (i = 0; follow[i]; i++)
+		num = num * cslen + (strchr(charset, follow[i]) - charset);
+	for (/*i = i*/; i < keylen; i++)
+		num *= cslen;
+
+	if (strlen(follow) == keylen && num < count) {
+		midorator_entry(midorator_js_get_wv(ctx), NULL);
+		iter = midorator_js_array_nth(ctx, elems, num);
+		JSStringRef cs = JSStringCreateWithUTF8CString(cmd);
+		JSValueRef args[] = { JSValueMakeString(ctx, cs), iter.val };
+		JSStringRelease(cs);
+		midorator_js_callback(ctx, NULL, NULL, 2, args, NULL);
+		//midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val));
+		return;
+	}
+
+	int remcount = 1;
+	for (i = strlen(follow); i < keylen; i++)
+		remcount *= cslen;
+
+	for (iter = midorator_js_array_nth(ctx, elems, num); iter.val && iter.index < num + remcount; iter = midorator_js_array_next(iter)) {
+		char text[keylen + 1];
+		text[keylen] = 0;
+		int n = iter.index;
+		for (i = keylen - 1; i >= 0; i--) {
+			div_t dt = div(n, cslen);
+			text[i] = charset[dt.rem];
+			n = dt.quot;
+		}
+//fprintf(stderr, "%s\n", text);
+		midorator_js_genhint(ctx, midorator_js_v2o(ctx, iter.val), text);
+	}
+}
+
 static_f void midorator_make_js_callback(JSContextRef ctx, GtkWidget *web_view) {
 	JSObjectRef global = JSContextGetGlobalObject(ctx);
 
 	JSStringRef s = JSStringCreateWithUTF8CString("midorator_command");
-	JSStringRef sw = JSStringCreateWithUTF8CString("midorator_internal");
 
 	if (!JSObjectHasProperty(ctx, global, s)) {
+		JSStringRef sw = JSStringCreateWithUTF8CString("midorator_internal");
 		JSObjectRef func = JSObjectMakeFunctionWithCallback(ctx, s, midorator_js_callback);
 		JSObjectSetProperty(ctx, global, s, func, kJSPropertyAttributeReadOnly, NULL);
 		char buf[32] = {};
@@ -876,10 +968,21 @@ static_f void midorator_make_js_callback(JSContextRef ctx, GtkWidget *web_view) 
 		JSStringRef sv = JSStringCreateWithUTF8CString(buf);
 		JSObjectSetProperty(ctx, global, sw, JSValueMakeString(ctx, sv), kJSPropertyAttributeReadOnly, NULL);
 		JSStringRelease(sv);
+		JSStringRelease(sw);
 	}
 
 	JSStringRelease(s);
-	JSStringRelease(sw);
+}
+
+static_f void midorator_hints(GtkWidget* web_view, const char *charset, const char *follow, const char *cmd) {
+	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
+	if (!frame)
+		return;
+	JSGlobalContextRef ctx = webkit_web_frame_get_global_context(frame);
+	if (!ctx)
+		return;
+	midorator_make_js_callback(ctx, GTK_WIDGET(web_view));
+	midorator_js_hints(ctx, charset, follow, cmd);
 }
 
 static_f void midorator_submit_form(GtkWidget* web_view) {
@@ -1461,15 +1564,17 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			const char *hintchars = midorator_options("option", "hintchars", NULL);
 			if (!hintchars)
 				hintchars = "0123456789";
-			midorator_process_command(web_view, "js "
+/*			midorator_process_command(web_view, "js "
 #					include "uzbl-follow.h"
-					"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
+					"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");*/
+			midorator_hints(web_view, hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
 		}
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
-		midorator_process_command(web_view, "js "
+		midorator_hints(web_view, NULL, NULL, NULL);
+/*		midorator_process_command(web_view, "js "
 #				include "uzbl-follow.h"
-				"", "01", "a", "click");
+				"", "01", "a", "click");*/
 
 	} else if (strcmp(cmd[0], "reload") == 0) {
 		webkit_web_view_reload(WEBKIT_WEB_VIEW(web_view));
