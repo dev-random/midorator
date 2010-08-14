@@ -34,6 +34,7 @@ static_f void midorator_message(GtkWidget* web_view, const char *message, const 
 const char* midorator_options(const char *group, const char *name, const char *value);
 static_f GtkWidget* midorator_js_get_wv(JSContextRef ctx);
 static_f char* midorator_js_getattr(JSContextRef ctx, JSObjectRef obj, const char *name);
+static_f char* midorator_html_decode(char *str);
 
 #include "keycodes.h"
 
@@ -750,6 +751,8 @@ static_f void midorator_js_script(JSContextRef ctx, const char *code, int force)
 
 static_f void midorator_js_open(JSContextRef ctx, const char *href, JSObjectRef frame) {
 	if (strncmp(href, "javascript:", strlen("javascript:")) == 0) {
+		if (!midorator_js_is_js_enabled(ctx))
+			return;
 		char *js = g_uri_unescape_string(href + strlen("javascript:"), NULL);
 		midorator_js_script(ctx, js, false);
 		g_free(js);
@@ -954,6 +957,78 @@ static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const ch
 	}
 }
 
+static_f void midorator_js_go(JSContextRef ctx, const char *direction) {
+	midorator_js_array_iter iter;
+	JSObjectRef doc = midorator_js_v2o(ctx, midorator_js_getprop(ctx, NULL, "document"));
+	if (!doc)
+		return;
+	JSObjectRef all = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "all"));
+	if (!all)
+		return;
+	for (iter = midorator_js_array_first(ctx, all); iter.val; iter = midorator_js_array_next(iter)) {
+		char *rel = midorator_js_getattr(ctx, midorator_js_v2o(ctx, iter.val), "rel");
+		if (!rel)
+			continue;
+		if (g_ascii_strcasecmp(rel, direction) == 0) {
+			free(rel);
+			midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val));
+			return;
+		}
+		free(rel);
+	}
+	char *dir2 = g_strconcat("go_", direction, NULL);
+	const char *rule = midorator_options("option", dir2, NULL);
+	g_free(dir2);
+	if (!rule || !rule[0])
+		return;
+	char **res = g_strsplit(rule, ",", -1);
+	if (!res)
+		return;
+	GRegex *tagre = g_regex_new("<[^>]*>", 0, 0, NULL);
+	int i;
+	for (i=0; res[i]; i++) {
+		for (rule = res[i]; strchr(" \t\n\r", rule[0]); rule++);
+		JSObjectRef links = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "all"));
+		if (!links) {
+			g_strfreev(res);
+			return;
+		}
+		GError *e = NULL;
+		GRegex *re = g_regex_new(rule, G_REGEX_CASELESS, 0, &e);
+		if (e) {
+			midorator_error(midorator_js_get_wv(ctx), "Invalid regex in go_%s: %s", direction, e->message);
+			g_strfreev(res);
+			g_error_free(e);
+			return;
+		}
+		for (iter = midorator_js_array_first(ctx, links); iter.val; iter = midorator_js_array_next(iter)) {
+			char *html = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, midorator_js_v2o(ctx, iter.val), "innerHTML"));
+			if (!html)
+				continue;
+			if (strlen(html) > 128) {
+				g_free(html);
+				continue;
+			}
+			char *text = midorator_html_decode(g_regex_replace_literal(tagre, html, -1, 0, "", 0, NULL));
+			g_free(html);
+			if (!text)
+				continue;
+			if (g_regex_match(re, text, 0, NULL)) {
+				g_strfreev(res);
+				g_free(text);
+				g_regex_unref(re);
+				g_regex_unref(tagre);
+				midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val));
+				return;
+			}
+			g_free(text);
+		}
+		g_regex_unref(re);
+	}
+	g_regex_unref(tagre);
+	g_strfreev(res);
+}
+
 static_f void midorator_make_js_callback(JSContextRef ctx, GtkWidget *web_view) {
 	JSObjectRef global = JSContextGetGlobalObject(ctx);
 
@@ -974,6 +1049,44 @@ static_f void midorator_make_js_callback(JSContextRef ctx, GtkWidget *web_view) 
 	JSStringRelease(s);
 }
 
+// Decodes html-entities IN-PLACE. Returns its argument.
+static_f char* midorator_html_decode(char *str) {
+	/*static const char *tre_text = "&([[:alnum:]]+);";
+	static const char *tre_num = "&#([0-9]+);";
+	static const char *tre_amp = "&#38;|&amp;";*/
+	char *in, *out;
+	for (in = out = str; (out[0] = in[0]); in++, out++)
+		if (in[0] == '&') {
+			char *end = strchr(in, ';');
+			if (!end)
+				continue;
+			if (in[1] == '#' && (in[2] == 'x' || in[2] == 'X')) {
+				char *end2;
+				long n = strtol(&in[3], &end2, 16);
+				if (end != end2)
+					continue;
+				in = end;
+				out += -1 + g_unichar_to_utf8(n, out);
+			} else if (in[1] == '#') {
+				char *end2;
+				long n = strtol(&in[2], &end2, 10);
+				if (end != end2)
+					continue;
+				in = end;
+				out += -1 + g_unichar_to_utf8(n, out);
+			} else if (strncmp(in, "&amp;", strlen("&amp;")) == 0) {
+				in += -1 + strlen("&amp;");
+			} else if (strncmp(in, "&lt;", strlen("&lt;")) == 0) {
+				in += -1 + strlen("&lt;");
+				out[0] = '<';
+			} else if (strncmp(in, "&gt;", strlen("&gt;")) == 0) {
+				in += -1 + strlen("&gt;");
+				out[0] = '>';
+			} // TODO: more entities
+		}
+	return str;
+}
+
 static_f void midorator_hints(GtkWidget* web_view, const char *charset, const char *follow, const char *cmd) {
 	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
 	if (!frame)
@@ -983,6 +1096,17 @@ static_f void midorator_hints(GtkWidget* web_view, const char *charset, const ch
 		return;
 	midorator_make_js_callback(ctx, GTK_WIDGET(web_view));
 	midorator_js_hints(ctx, charset, follow, cmd);
+}
+
+static_f void midorator_go(GtkWidget* web_view, const char *dir) {
+	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
+	if (!frame)
+		return;
+	JSGlobalContextRef ctx = webkit_web_frame_get_global_context(frame);
+	if (!ctx)
+		return;
+	midorator_make_js_callback(ctx, GTK_WIDGET(web_view));
+	midorator_js_go(ctx, dir);
 }
 
 static_f void midorator_submit_form(GtkWidget* web_view) {
@@ -1564,17 +1688,11 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			const char *hintchars = midorator_options("option", "hintchars", NULL);
 			if (!hintchars)
 				hintchars = "0123456789";
-/*			midorator_process_command(web_view, "js "
-#					include "uzbl-follow.h"
-					"", hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");*/
 			midorator_hints(web_view, hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
 		}
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
 		midorator_hints(web_view, NULL, NULL, NULL);
-/*		midorator_process_command(web_view, "js "
-#				include "uzbl-follow.h"
-				"", "01", "a", "click");*/
 
 	} else if (strcmp(cmd[0], "reload") == 0) {
 		webkit_web_view_reload(WEBKIT_WEB_VIEW(web_view));
@@ -1583,18 +1701,12 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		webkit_web_view_reload_bypass_cache(WEBKIT_WEB_VIEW(web_view));
 
 	} else if (strcmp(cmd[0], "go") == 0 && cmd[1] && cmd[1][0]) {
-		if (strcmp(cmd[1], "next") == 0) {
-			midorator_process_command(web_view, "js "
-#				include "go-next.h"
-					"", "next");
-		} else if (strcmp(cmd[1], "prev") == 0) {
-			midorator_process_command(web_view, "js "
-#				include "go-next.h"
-					"", "prev");
-		} else if (strcmp(cmd[1], "back") == 0) {
+		if (strcmp(cmd[1], "back") == 0) {
 			webkit_web_view_go_back(WEBKIT_WEB_VIEW(web_view));
 		} else if (strcmp(cmd[1], "forth") == 0) {
 			webkit_web_view_go_forward(WEBKIT_WEB_VIEW(web_view));
+		} else {
+			midorator_go(web_view, cmd[1]);
 		}
 
 	} else if (strcmp(cmd[0], "undo") == 0) {
