@@ -1238,6 +1238,8 @@ static_f void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
 		midorator_process_command(web_view, "hint %s", t + 1);
 	else if (t[0] == '/')
 		midorator_search(web_view, t + 1, true, false);
+	else if (t[0] == '?')
+		midorator_search(web_view, t + 1, false, false);
 }
 
 static_f gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* event, GtkWidget* web_view) {
@@ -1253,6 +1255,8 @@ static_f gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* 
 			midorator_process_command(web_view, "hint %s", t + 1);
 		else if (t[0] == '/')
 			midorator_search(web_view, t + 1, true, true);
+		else if (t[0] == '?')
+			midorator_search(web_view, t + 1, false, true);
 		g_free(t);
 		return true;
 	} else
