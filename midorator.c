@@ -1481,6 +1481,7 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			g_free(os);
 		}
 		const char *meaning = midorator_options("map", sequence, NULL);
+		const char *meaningN = midorator_options("nmap", sequence, NULL);
 		if (!meaning || !meaning[0]) {
 			numprefix = 0;
 			g_free(sequence);
@@ -1495,7 +1496,12 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			numprefix = 0;
 			g_free(sequence);
 			sequence = NULL;
-			midorator_process_command(web_view, pr ? "%2$i%1$s" : "%s", meaning, pr);
+			if (pr && meaningN && meaningN[0])
+				midorator_process_command(web_view, meaningN, pr);
+			else if (pr)
+				midorator_process_command(web_view, "%i%s", pr, meaning);
+			else
+				midorator_process_command(web_view, "%s", meaning);
 			return true;
 		}
 	}
@@ -1514,6 +1520,15 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	va_start(l, fmt);
 	vsnprintf(buf, len + 1, fmt, l);
 	va_end(l);
+	if (buf[0] >= '0' && buf[0] <= '9') {
+		char *cmd;
+		long num = strtol(buf, &cmd, 10);
+		int i;
+		for (i=0; i<num; i++)
+			if (!midorator_process_command(web_view, "%s", cmd))
+				return false;
+		return true;
+	}
 	char **cmd = (char**)malloc(sizeof(char*)*256);
 	int i, n = 0;
 	cmd[0] = buf;
@@ -1536,7 +1551,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			cmd[n+1] = NULL;
 			if (n == 1 && strcmp(cmd[0], "js") == 0)
 				break;
-			if (n == 2 && (strcmp(cmd[0], "cmdmap") == 0 || strcmp(cmd[0], "set") == 0))
+			if (n == 2 && (strcmp(cmd[0], "cmdmap") == 0 || strcmp(cmd[0], "cmdnmap") == 0 || strcmp(cmd[0], "set") == 0))
 				break;
 		}
 	}
@@ -1590,14 +1605,14 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	} else if (strcmp(cmd[0], "set") == 0 && cmd[1] && cmd[2]) {
 		midorator_options("option", cmd[1], cmd[2]);
 
-	} else if (strcmp(cmd[0], "cmdmap") == 0 && cmd[1] && cmd[2]) {
+	} else if ((strcmp(cmd[0], "cmdmap") == 0 || strcmp(cmd[0], "cmdnmap") == 0) && cmd[1] && cmd[2]) {
 		char *buf = g_strdup("");
 		int i;
 		for (i=0; cmd[1][i]; i++) {
 			if (cmd[1][i] == '<') {
 				char *end = strchr(cmd[1] + i, '>');
 				if (!end) {
-					midorator_error(web_view, "Unfinished '<...>' in command 'cmdmap'");
+					midorator_error(web_view, "Unfinished '<...>' in command '%s'", cmd[0]);
 					g_free(buf);
 					free(cmd);
 					free(buf);
@@ -1621,9 +1636,9 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 				g_free(buf);
 				buf = nbuf;
 			}
-			midorator_options("map", buf, "wait");
+			midorator_options(cmd[0]+3, buf, "wait");
 		}
-		midorator_options("map", buf, cmd[2]);
+		midorator_options(cmd[0]+3, buf, cmd[2]);
 		g_free(buf);
 
 	} else if (strcmp(cmd[0], "next") == 0) {
