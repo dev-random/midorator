@@ -42,5 +42,5 @@
 	midorator_process_command(web_view, "set hint_yank a.href a.name");
 	midorator_process_command(web_view, "");
 	midorator_process_command(web_view, "set go_next ^>$, ^>>$, ^>>>$, ^next$, next, *[>»], ^далее, ^след[.у], next, >");
-	midorator_process_command(web_view, "set go_prev ^<$, ^<<$, ^<<<$, ^prev$, ^previous, prev[.]? *[>»], previous *[>»], ^назад, ^пред[.ы], previous, <");
+	midorator_process_command(web_view, "set go_prev ^<$, ^<<$, ^<<<$, ^prev$, ^previous, prev[.]? *[<«], previous *[<«], ^назад, ^пред[.ы], previous, <");
 	midorator_process_command(web_view, "");
