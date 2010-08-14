@@ -710,7 +710,7 @@ static_f void midorator_js_form_click(JSContextRef ctx, JSObjectRef item, bool f
 	if (g_ascii_strcasecmp(tagname, "form") == 0)
 		form = item;
 	else
-		form = midorator_js_v2o(ctx, midorator_js_getprop(ctx, item, "form"));
+		form = JSValueToObject(ctx, midorator_js_getprop(ctx, item, "form"), NULL);
 	free(tagname);
 
 	if (item != form) {
@@ -736,7 +736,8 @@ static_f void midorator_js_form_click(JSContextRef ctx, JSObjectRef item, bool f
 		}
 		// TODO: do something with "name=value" of button
 		midorator_js_callprop(ctx, form, "submit", 0, NULL);
-	}
+	} else
+		midorator_error(midorator_js_get_wv(ctx), "To submit a form, select it first");
 }
 
 static_f void midorator_js_script(JSContextRef ctx, const char *code, int force) {

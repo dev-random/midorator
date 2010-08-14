@@ -36,6 +36,7 @@
 	midorator_process_command(web_view, "cmdmap d q");
 	midorator_process_command(web_view, "cmdmap gt action TabNext");
 	midorator_process_command(web_view, "cmdmap gT action TabPrevious");
+	midorator_process_command(web_view, "cmdmap <CR> submit");
 	midorator_process_command(web_view, "");
 	midorator_process_command(web_view, "set hintstyle background-color: #59FF00; border: 2px solid #4A6600; color: black; font-size: 9px; line-height: 9px; font-weight: bold; margin: 0px; padding: 1px; z-index: 1000; border-radius: 6px;");
 	midorator_process_command(web_view, "set hint_default a.href input select textarea button .onclick");
