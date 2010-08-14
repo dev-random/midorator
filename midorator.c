@@ -421,8 +421,17 @@ static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, 
 	int l = 0, t = 0, w = (int)wd, h = (int)hd;
 	JSObjectRef i;
 	for (i = el; i; i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "offsetParent"), NULL)) {
-		if (!onscreen && !JSValueIsObject(ctx, midorator_js_getprop(ctx, i, "offsetParent")))
-			break;
+		if (!onscreen) {
+			if (!JSValueIsObject(ctx, midorator_js_getprop(ctx, i, "offsetParent")))
+				break;
+			JSObjectRef style = midorator_js_v2o(ctx, midorator_js_getprop(ctx, i, "style"));
+			char *pos = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "position"));
+			if (g_ascii_strcasecmp(pos, "relative") == 0) {
+				free(pos);
+				break;
+			}
+			free(pos);
+		}
 		JSValueRef e = NULL;
 		double wd = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "clientWidth"), &e);
 		double hd = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "clientHeight"), &e);
