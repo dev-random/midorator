@@ -411,7 +411,7 @@ static_f midorator_js_array_iter midorator_js_array_last(JSContextRef ctx, JSObj
 	return midorator_js_array_prev(ret);
 }
 
-static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, JSObjectRef el) {
+static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, JSObjectRef el, bool onscreen) {
 	struct _rect ret = { -1, -1, -1, -1 };
 	JSValueRef e = NULL;
 	double wd = JSValueToNumber(ctx, midorator_js_getprop(ctx, el, "clientWidth"), &e);
@@ -421,6 +421,8 @@ static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, 
 	int l = 0, t = 0, w = (int)wd, h = (int)hd;
 	JSObjectRef i;
 	for (i = el; i; i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "offsetParent"), NULL)) {
+		if (!onscreen && !JSValueIsObject(ctx, midorator_js_getprop(ctx, i, "offsetParent")))
+			break;
 		JSValueRef e = NULL;
 		double wd = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "clientWidth"), &e);
 		double hd = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "clientHeight"), &e);
@@ -487,7 +489,7 @@ static_f bool midorator_js_is_visible(JSContextRef ctx, JSObjectRef el) {
 			free(type);
 		}
 
-	struct _rect p = midorator_js_getpos(ctx, el);
+	struct _rect p = midorator_js_getpos(ctx, el, true);
 
 	JSValueRef e = NULL;
 	JSObjectRef doc = JSValueToObject(ctx, midorator_js_getprop(ctx, el, "ownerDocument"), &e);
@@ -644,6 +646,10 @@ static_f JSObjectRef midorator_js_create_element(JSContextRef ctx, const char *t
 		midorator_error(midorator_js_get_wv(ctx), "JS Error: Creating element: not created");
 		return NULL;
 	}
+	JSObjectRef style = JSValueToObject(ctx, midorator_js_getprop(ctx, JSValueToObject(ctx, ret, NULL), "style"), NULL);
+	if (style) {
+		midorator_js_setstrprop(ctx, style, "position", "absolute");
+	}
 	char *ename = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, near, "tagName"));
 	if (g_ascii_strcasecmp(ename, "td") == 0 || g_ascii_strcasecmp(ename, "li") == 0) {
 		JSObjectRef child = JSValueToObject(ctx, midorator_js_getprop(ctx, near, "firstChild"), NULL);
@@ -659,6 +665,8 @@ static_f JSObjectRef midorator_js_create_element(JSContextRef ctx, const char *t
 			midorator_js_callprop(ctx, parent, "insertBefore", 2, args);
 		} else
 			midorator_error(midorator_js_get_wv(ctx), "JS Error: Creating element: can't find parent");
+		//JSObjectRef body = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "body"));
+		//midorator_js_callprop(ctx, body, "appendChild", 1, &ret);
 	}
 	midorator_js_setprop(ctx, JSValueToObject(ctx, ret, NULL), "near", near);
 	return JSValueToObject(ctx, ret, NULL);
@@ -801,11 +809,14 @@ static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const
 	midorator_js_setstrprop(ctx, hint, "innerText", text);
 	midorator_js_setattr(ctx, hint, "name", "midorator_hint");
 	const char *css = midorator_options("option", "hintstyle", NULL);
+	struct _rect p = midorator_js_getpos(ctx, el, false);
+	char *pos = g_strdup_printf("left: %ipx !important; top: %ipx; !important; ", p.l, p.t);
 	char *fullstyle = g_strconcat(
 			"width:auto; height:auto; text-decoration:none; font-weight:normal; margin:0; padding:0; border:none; font-style:normal; font-family: Terminus monospace fixed; ",
-			css,
+			css, pos,
 			"display:inline-block !important; position:absolute !important;",
 			NULL);
+	g_free(pos);
 	midorator_js_setattr(ctx, hint, "style", fullstyle);
 	g_free(fullstyle);
 	return hint;
