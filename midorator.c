@@ -1797,7 +1797,6 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 	if (!processed) {
 		processed = true;
 		midorator_default_config(web_view);
-		midorator_process_command(web_view, "source ~/.midoratorrc");
 	}
 
 	gtk_widget_grab_focus(web_view);
