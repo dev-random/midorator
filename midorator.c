@@ -496,7 +496,7 @@ static_f bool midorator_js_is_visible(JSContextRef ctx, JSObjectRef el) {
 	r.t = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageYOffset"), NULL);
 	r.w = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerWidth"), NULL);
 	r.h = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerHeight"), NULL);
-	for (i = el; i; i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "parentElement"), NULL)) {
+	for (i = el; JSValueToBoolean(ctx, midorator_js_getprop(ctx, i, "parentElement")); i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "parentElement"), NULL)) {
 		JSObjectRef style = midorator_js_v2o(ctx, midorator_js_callprop(ctx, w, "getComputedStyle", 1, &i));
 		if (i != el) {
 			char *of = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "overflow"));
