@@ -17,6 +17,8 @@
 #ifdef DEBUG
 #	include <execinfo.h>
 #	define static_f
+#	define logline (fprintf(stderr, "%s():%i\n", __func__, __LINE__))
+#	define logextra(f, ...) (fprintf(stderr, "%s():%i: " f "\n", __func__, __LINE__, __VA_ARGS__))
 #else
 #	define static_f static
 #endif
@@ -312,7 +314,7 @@ static_f bool midorator_js_is_js_enabled(JSContextRef ctx) {
 static_f JSValueRef midorator_js_callprop(JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
 	JSValueRef prop = midorator_js_getprop(ctx, obj, name);
 	if (!prop || !JSValueIsObject(ctx, prop)) {
-		//midorator_error(web_view, "No such method: %s", name);
+		//midorator_error(midorator_js_get_wv(ctx), "No such method: %s", name);
 		return NULL;
 	}
 	JSObjectRef handler = JSValueToObject(ctx, prop, NULL);
@@ -399,7 +401,7 @@ static_f midorator_js_array_iter midorator_js_array_nth(JSContextRef ctx, JSObje
 }
 
 static_f midorator_js_array_iter midorator_js_array_first(JSContextRef ctx, JSObjectRef arr) {
-	return midorator_js_array_nth(ctx, arr, 1);
+	return midorator_js_array_nth(ctx, arr, 0);
 }
 
 static_f midorator_js_array_iter midorator_js_array_last(JSContextRef ctx, JSObjectRef arr) {
@@ -411,64 +413,52 @@ static_f midorator_js_array_iter midorator_js_array_last(JSContextRef ctx, JSObj
 	return midorator_js_array_prev(ret);
 }
 
-static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, JSObjectRef el, bool onscreen) {
-	struct _rect ret = { -1, -1, -1, -1 };
-	JSValueRef e = NULL;
-	double wd = JSValueToNumber(ctx, midorator_js_getprop(ctx, el, "clientWidth"), &e);
-	double hd = JSValueToNumber(ctx, midorator_js_getprop(ctx, el, "clientHeight"), &e);
-	if (midorator_js_error(ctx, e, "JS Error: Calculating element position"))
-		return ret;
-	int l = 0, t = 0, w = (int)wd, h = (int)hd;
-	JSObjectRef i;
-	for (i = el; i; i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "offsetParent"), NULL)) {
-		if (!onscreen) {
-			if (!JSValueIsObject(ctx, midorator_js_getprop(ctx, i, "offsetParent")))
-				break;
-			JSObjectRef style = midorator_js_v2o(ctx, midorator_js_getprop(ctx, i, "style"));
-			char *pos = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "position"));
-			if (g_ascii_strcasecmp(pos, "relative") == 0) {
-				free(pos);
-				break;
-			}
-			free(pos);
-		}
-		JSValueRef e = NULL;
-		double wd = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "clientWidth"), &e);
-		double hd = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "clientHeight"), &e);
-		double ld = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "scrollLeft"), &e);
-		double td = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "scrollTop"), &e);
-		if (midorator_js_error(ctx, e, "JS Error: Calculating element position"))
-			continue;
-
-		l -= (int)ld;
-		t -= (int)td;
-
-		if (l < 0) {
-			w += l;
-			l = 0;
-		}
-		if (t < 0) {
-			h += t;
-			t = 0;
-		}
-		if (l + w > (int)wd)
-			w = (int)wd - l;
-		if (t + h > (int)hd)
-			h = (int)hd - t;
-
-		if (w < 0 || h < 0)
-			return ret;
-
-		e = NULL;
-		ld = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "offsetLeft"), &e);
-		td = JSValueToNumber(ctx, midorator_js_getprop(ctx, i, "offsetTop"), &e);
-		if (e)
-			continue;
-		l += (int)ld;
-		t += (int)td;
+static_f void midorator_js_getrelpos(JSContextRef ctx, JSObjectRef el, double *l, double *t) {
+	JSObjectRef parent = JSValueToObject(ctx, midorator_js_getprop(ctx, el, "parentNode"), NULL);
+	JSObjectRef oparent = JSValueToObject(ctx, midorator_js_getprop(ctx, el, "offsetParent"), NULL);
+	if (!parent) {
+		*l = 0;
+		*t = 0;
+		return;
 	}
-	struct _rect ret2 = {l, t, w, h};
-	return ret2;
+	*l = JSValueToNumber(ctx, midorator_js_getprop(ctx, el, "offsetLeft"), NULL);
+	*t = JSValueToNumber(ctx, midorator_js_getprop(ctx, el, "offsetTop"), NULL);
+	if (isnan(*l) || isnan(*t)) {
+		*l = 0;
+		*t = 0;
+		return;
+	}
+	if (JSValueIsEqual(ctx, parent, oparent, NULL))
+		return;
+	double ld = JSValueToNumber(ctx, midorator_js_getprop(ctx, parent, "offsetLeft"), NULL);
+	double td = JSValueToNumber(ctx, midorator_js_getprop(ctx, parent, "offsetTop"), NULL);
+	if (isnan(ld) || isnan(td))
+		return;
+	*l -= ld;
+	*t -= td;
+}
+
+static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, JSObjectRef el) {
+	struct _rect ret = { -1, -1, -1, -1 };
+	JSObjectRef rect_o = midorator_js_v2o(ctx, midorator_js_callprop(ctx, el, "getBoundingClientRect", 0, NULL));
+	if (!rect_o)
+		return ret;
+	ret.l = JSValueToNumber(ctx, midorator_js_getprop(ctx, rect_o, "left"), NULL);
+	ret.t = JSValueToNumber(ctx, midorator_js_getprop(ctx, rect_o, "top"), NULL);
+	ret.w = JSValueToNumber(ctx, midorator_js_getprop(ctx, rect_o, "width"), NULL);
+	ret.h = JSValueToNumber(ctx, midorator_js_getprop(ctx, rect_o, "height"), NULL);
+
+	JSObjectRef doc = midorator_js_v2o(ctx, midorator_js_getprop(ctx, el, "ownerDocument"));
+	if (!doc)
+		return ret;
+	JSObjectRef w = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "defaultView"));
+	if (!w)
+		return ret;
+	
+	ret.l += JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageXOffset"), NULL);
+	ret.t += JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageYOffset"), NULL);
+	
+	return ret;
 }
 
 static_f bool midorator_js_is_visible(JSContextRef ctx, JSObjectRef el) {
@@ -498,24 +488,48 @@ static_f bool midorator_js_is_visible(JSContextRef ctx, JSObjectRef el) {
 			free(type);
 		}
 
-	struct _rect p = midorator_js_getpos(ctx, el, true);
-
-	JSValueRef e = NULL;
-	JSObjectRef doc = JSValueToObject(ctx, midorator_js_getprop(ctx, el, "ownerDocument"), &e);
-	if (midorator_js_error(ctx, e, "JS Error: Calculating element position: ownerDocument"))
-		return false;
-	JSObjectRef w = JSValueToObject(ctx, midorator_js_getprop(ctx, doc, "defaultView"), &e);
-	if (midorator_js_error(ctx, e, "JS Error: Calculating element position: defaultView"))
-		return false;
-	double wd = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerWidth"), &e);
-	double hd = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerHeight"), &e);
-	//double ld = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageXOffset"), &e);
-	//double td = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageYOffset"), &e);
-	if (midorator_js_error(ctx, e, "JS Error: Calculating window scroll position"))
-		return false;
-
-	if (p.l + p.w < 0 || p.t + p.h < 0 || p.l > (int)wd || p.t > (int)hd || p.w < 0 || p.h < 0)
-		return false;
+	// Check if element is on viewport:
+	JSObjectRef doc = midorator_js_v2o(ctx, midorator_js_getprop(ctx, el, "ownerDocument"));
+	JSObjectRef w = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "defaultView"));
+	struct _rect r;
+	r.l = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageXOffset"), NULL);
+	r.t = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "pageYOffset"), NULL);
+	r.w = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerWidth"), NULL);
+	r.h = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerHeight"), NULL);
+	for (i = el; i; i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "parentElement"), NULL)) {
+		JSObjectRef style = midorator_js_v2o(ctx, midorator_js_callprop(ctx, w, "getComputedStyle", 1, &i));
+		if (i != el) {
+			char *of = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "overflow"));
+			char *ofx = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "overflowX"));
+			char *ofy = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "overflowY"));
+			if (strcmp(of, "auto") && strcmp(of, "scroll") && strcmp(of, "hidden") &&
+					strcmp(ofx, "auto") && strcmp(ofx, "scroll") && strcmp(ofx, "hidden") &&
+					strcmp(ofy, "auto") && strcmp(ofy, "scroll") && strcmp(ofy, "hidden")) {
+				free(of);
+				free(ofx);
+				free(ofy);
+				continue;
+			}
+			free(of);
+			free(ofx);
+			free(ofy);
+		}
+		struct _rect r2 = midorator_js_getpos(ctx, i);
+		if (r.l < r2.l) {
+			r.w -= r2.l - r.l;
+			r.l = r2.l;
+		}
+		if (r.t < r2.t) {
+			r.h -= r2.t - r.t;
+			r.t = r2.t;
+		}
+		if (r.l + r.w > r2.l + r2.w)
+			r.w = r2.l + r2.w - r.l;
+		if (r.t + r.h > r2.t + r2.h)
+			r.h = r2.t + r2.h - r.t;
+		if (r.w <= 0 || r.h <= 0)
+			return false;
+	}
 
 	return true;
 }
@@ -553,7 +567,7 @@ static_f bool midorator_js_is_selected(JSContextRef ctx, JSObjectRef el, const c
 }
 
 static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef w, char **sel) {
-	JSObjectRef ac = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "Array"), NULL);
+	JSObjectRef ac = JSValueToObject(ctx, midorator_js_getprop(ctx, w, "Array"), NULL);
 	JSValueRef ret = JSObjectCallAsConstructor(ctx, ac, 0, NULL, NULL);
 	if (!ret || !JSValueToObject(ctx, ret, NULL))
 		*((char*)NULL) = 1;
@@ -565,8 +579,8 @@ static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef 
 			ret = midorator_js_callprop(ctx, JSValueToObject(ctx, ret, NULL), "concat", 1, &sub);
 	}
 
-	JSObjectRef doc = JSValueToObject(ctx, midorator_js_getprop(ctx, w, "document"), NULL);
-	JSObjectRef all = JSValueToObject(ctx, midorator_js_getprop(ctx, doc, "all"), NULL);
+	JSObjectRef doc = midorator_js_v2o(ctx, midorator_js_getprop(ctx, w, "document"));
+	JSObjectRef all = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "all"));
 	for (i = midorator_js_array_first(ctx, all); i.val; i = midorator_js_array_next(i)) {
 		int j;
 		for (j=0; sel[j]; j++)
@@ -660,7 +674,7 @@ static_f JSObjectRef midorator_js_create_element(JSContextRef ctx, const char *t
 		midorator_js_setstrprop(ctx, style, "position", "absolute");
 	}
 	char *ename = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, near, "tagName"));
-	if (g_ascii_strcasecmp(ename, "td") == 0 || g_ascii_strcasecmp(ename, "li") == 0) {
+	/*if (g_ascii_strcasecmp(ename, "td") == 0 || g_ascii_strcasecmp(ename, "li") == 0) {
 		JSObjectRef child = JSValueToObject(ctx, midorator_js_getprop(ctx, near, "firstChild"), NULL);
 		if (child) {
 			JSValueRef args[] = { ret, child };
@@ -674,9 +688,10 @@ static_f JSObjectRef midorator_js_create_element(JSContextRef ctx, const char *t
 			midorator_js_callprop(ctx, parent, "insertBefore", 2, args);
 		} else
 			midorator_error(midorator_js_get_wv(ctx), "JS Error: Creating element: can't find parent");
-		//JSObjectRef body = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "body"));
-		//midorator_js_callprop(ctx, body, "appendChild", 1, &ret);
-	}
+	}*/
+	JSObjectRef body = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "body"));
+	midorator_js_callprop(ctx, body, "appendChild", 1, &ret);
+
 	midorator_js_setprop(ctx, JSValueToObject(ctx, ret, NULL), "near", near);
 	return JSValueToObject(ctx, ret, NULL);
 }
@@ -818,7 +833,7 @@ static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const
 	midorator_js_setstrprop(ctx, hint, "innerText", text);
 	midorator_js_setattr(ctx, hint, "name", "midorator_hint");
 	const char *css = midorator_options("option", "hintstyle", NULL);
-	struct _rect p = midorator_js_getpos(ctx, el, false);
+	struct _rect p = midorator_js_getpos(ctx, el);
 	char *pos = g_strdup_printf("left: %ipx !important; top: %ipx; !important; ", p.l, p.t);
 	char *fullstyle = g_strconcat(
 			"width:auto; height:auto; text-decoration:none; font-weight:normal; margin:0; padding:0; border:none; font-style:normal; font-family: Terminus monospace fixed; ",
@@ -956,7 +971,6 @@ static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const ch
 		JSValueRef args[] = { JSValueMakeString(ctx, cs), iter.val };
 		JSStringRelease(cs);
 		midorator_js_callback(ctx, NULL, NULL, 2, args, NULL);
-		//midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val));
 		return;
 	}
 
@@ -973,7 +987,6 @@ static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const ch
 			text[i] = charset[dt.rem];
 			n = dt.quot;
 		}
-//fprintf(stderr, "%s\n", text);
 		midorator_js_genhint(ctx, midorator_js_v2o(ctx, iter.val), text + strlen(follow));
 	}
 }
