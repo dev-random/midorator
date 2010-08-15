@@ -567,7 +567,7 @@ static_f bool midorator_js_is_selected(JSContextRef ctx, JSObjectRef el, const c
 }
 
 static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef w, char **sel) {
-	JSObjectRef ac = JSValueToObject(ctx, midorator_js_getprop(ctx, w, "Array"), NULL);
+	JSObjectRef ac = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "Array"), NULL);
 	JSValueRef ret = JSObjectCallAsConstructor(ctx, ac, 0, NULL, NULL);
 	if (!ret || !JSValueToObject(ctx, ret, NULL))
 		*((char*)NULL) = 1;
@@ -579,7 +579,9 @@ static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef 
 			ret = midorator_js_callprop(ctx, JSValueToObject(ctx, ret, NULL), "concat", 1, &sub);
 	}
 
-	JSObjectRef doc = midorator_js_v2o(ctx, midorator_js_getprop(ctx, w, "document"));
+	JSObjectRef doc = JSValueToObject(ctx, midorator_js_getprop(ctx, w, "document"), NULL);
+	if (!doc)
+		return JSValueMakeNull(ctx);	// happens when frame is blocked by AdBlock
 	JSObjectRef all = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "all"));
 	for (i = midorator_js_array_first(ctx, all); i.val; i = midorator_js_array_next(i)) {
 		int j;
