@@ -1044,9 +1044,9 @@ static_f void midorator_js_go(JSContextRef ctx, const char *direction) {
 		return;
 	GRegex *tagre = g_regex_new("<[^>]*>", 0, 0, NULL);
 	int i;
+	JSObjectRef links = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "links"));
 	for (i=0; res[i]; i++) {
 		for (rule = res[i]; strchr(" \t\n\r", rule[0]); rule++);
-		JSObjectRef links = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "all"));
 		if (!links) {
 			g_strfreev(res);
 			return;
