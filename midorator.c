@@ -1648,13 +1648,13 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		midorator_mode(web_view, 'i');
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
-		midorator_cmdlen_assert(2);
+		midorator_cmdlen_assert_range(2, 1025);
 		char *uri = midorator_make_uri(cmd + 1);
 		g_signal_emit_by_name(gtk_widget_get_parent(gtk_widget_get_parent(web_view)), "new-tab", uri, false, NULL);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "open") == 0) {
-		midorator_cmdlen_assert(2);
+		midorator_cmdlen_assert_range(2, 1025);
 		char *uri = midorator_make_uri(cmd + 1);
 		if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
 			char *js = g_uri_unescape_string(uri + strlen("javascript:"), NULL);
