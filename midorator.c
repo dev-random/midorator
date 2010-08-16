@@ -1531,72 +1531,83 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	}
 }
 
+static_f char* midorator_shellmerge(char **argv, int argc) {
+	if (!argc)
+		return NULL;
+	char *ret = g_shell_quote(argv[0]);
+	int i;
+	for (i=1; i<argc; i++) {
+		char *ret2 = g_strconcat(ret, " ", g_shell_quote(argv[i]), NULL);
+		g_free(ret);
+		ret = ret2;
+	}
+	return ret;
+}
+
 static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
 	va_list l;
 	va_start(l, fmt);
-	int len = vsnprintf(NULL, 0, fmt, l);
+	char *buf = g_strdup_vprintf(fmt, l);
 	va_end(l);
-	if (len <= 0)
-		return false;
-	char *buf = (char*)malloc(len + 1);
 	if (!buf)
 		return false;
-	va_start(l, fmt);
-	vsnprintf(buf, len + 1, fmt, l);
-	va_end(l);
 	if (buf[0] >= '0' && buf[0] <= '9') {
 		char *cmd;
 		long num = strtol(buf, &cmd, 10);
 		int i;
+		web_view = gtk_widget_ref(web_view);
 		for (i=0; i<num; i++)
-			if (!midorator_process_command(web_view, "%s", cmd))
+			if (!midorator_process_command(web_view, "%s", cmd)) {
+				g_free(buf);
+				gtk_widget_unref(web_view);
 				return false;
+			}
+		g_free(buf);
+		gtk_widget_unref(web_view);
 		return true;
+	
 	}
-	char **cmd = (char**)malloc(sizeof(char*)*256);
-	int i, n = 0;
-	cmd[0] = buf;
-	cmd[1] = NULL;
-	bool inquote = false;
-	for (i=0; buf[i]; i++) {
-		if (buf[i] == '"' && strcmp(cmd[0], "js") && strcmp(cmd[0], "cmdmap")) {
-			inquote = !inquote;
-			memmove(&buf[i], &buf[i+1], strlen(&buf[i]));
-		} else if (buf[i] == '\\' && buf[i+1]) {
-			memmove(&buf[i], &buf[i+1], strlen(&buf[i]));
-		} else if (&buf[i] == cmd[n] && buf[i] == ' ')
-			cmd[n]++;
-		else if (buf[i] == ' ' && !inquote) {
-			buf[i] = 0;
-			n++;
-			if (n > 254)
-				break;
-			cmd[n] = &buf[i+1];
-			cmd[n+1] = NULL;
-			if (n == 1 && strcmp(cmd[0], "js") == 0)
-				break;
-			if (n == 2 && (strcmp(cmd[0], "cmdmap") == 0 || strcmp(cmd[0], "cmdnmap") == 0 || strcmp(cmd[0], "set") == 0))
-				break;
+	char **cmd;
+	int cmdlen;
+	{
+		GError *err = NULL;
+		char *buf2 = buf;
+		while (buf2[0] && strchr(" \t\n\r:", buf2[0]))
+			buf2++;
+		if (!g_shell_parse_argv(buf2, &cmdlen, &cmd, &err)) {
+			if (err->code != G_SHELL_ERROR_EMPTY_STRING)
+				midorator_error(web_view, "Error parsing command: %s", err->message);
+			g_error_free(err);
+			g_free(buf);
+			return false;
 		}
 	}
-	while (cmd[0][0] == ':')
-		cmd[0]++;
+
+#define midorator_cmdlen_assert(count) if (cmdlen != (count)) \
+{ midorator_error(web_view, "Command '%s' expects exactly %i argument(s)", cmd[0], (count) - 1); g_free(buf); g_strfreev(cmd); return false; }
+
+#define midorator_cmdlen_assert_range(min, max) if (cmdlen < (min) || cmdlen > (max)) \
+{ midorator_error(web_view, "Command '%s' expects %i to %i arguments", cmd[0], (min) - 1, (max) - 1); g_free(buf); g_strfreev(cmd); return false; }
 
 	if (cmd[0][0] == '#' || cmd[0][0] == '"') {
 		// Do nothing, it's a comment
 
-	} else if (strcmp(cmd[0], "widget") == 0 && cmd[1] && cmd[2] && cmd[3]) {
+	} else if (strcmp(cmd[0], "widget") == 0) {
+		midorator_cmdlen_assert(4);
 		midorator_setprop(web_view, cmd[1], cmd[2], cmd[3]);
 
 	} else if (strcmp(cmd[0], "insert") == 0) {
+		midorator_cmdlen_assert(1);
 		midorator_mode(web_view, 'i');
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
+		midorator_cmdlen_assert(2);
 		char *uri = midorator_make_uri(cmd + 1);
 		g_signal_emit_by_name(gtk_widget_get_parent(gtk_widget_get_parent(web_view)), "new-tab", uri, false, NULL);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "open") == 0) {
+		midorator_cmdlen_assert(2);
 		char *uri = midorator_make_uri(cmd + 1);
 		if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
 			char *js = g_uri_unescape_string(uri + strlen("javascript:"), NULL);
@@ -1608,28 +1619,35 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		free(uri);
 
 	} else if (strcmp(cmd[0], "paste") == 0) {
+		midorator_cmdlen_assert(1);
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
 		midorator_process_command(web_view, "open %s", uri);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "tabpaste") == 0) {
+		midorator_cmdlen_assert(1);
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
 		midorator_process_command(web_view, "tabnew %s", uri);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "yank") == 0) {
+		midorator_cmdlen_assert(1);
 		midorator_setclipboard(GDK_SELECTION_PRIMARY, webkit_web_view_get_uri(WEBKIT_WEB_VIEW(web_view)));
 
-	} else if (strcmp(cmd[0], "search") == 0 && cmd[1] && cmd[2]) {
+	} else if (strcmp(cmd[0], "search") == 0) {
+		midorator_cmdlen_assert(3);
 		midorator_options("search", cmd[1], cmd[2]);
 
-	} else if (strcmp(cmd[0], "bookmark") == 0 && cmd[1] && cmd[2]) {
+	} else if (strcmp(cmd[0], "bookmark") == 0) {
+		midorator_cmdlen_assert(3);
 		midorator_options("bookmark", cmd[1], cmd[2]);
 
-	} else if (strcmp(cmd[0], "set") == 0 && cmd[1] && cmd[2]) {
+	} else if (strcmp(cmd[0], "set") == 0) {
+		midorator_cmdlen_assert(3);
 		midorator_options("option", cmd[1], cmd[2]);
 
-	} else if ((strcmp(cmd[0], "cmdmap") == 0 || strcmp(cmd[0], "cmdnmap") == 0) && cmd[1] && cmd[2]) {
+	} else if (strcmp(cmd[0], "cmdmap") == 0 || strcmp(cmd[0], "cmdnmap") == 0) {
+		midorator_cmdlen_assert_range(3, 1025);
 		char *buf = g_strdup("");
 		int i;
 		for (i=0; cmd[1][i]; i++) {
@@ -1662,19 +1680,25 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			}
 			midorator_options(cmd[0]+3, buf, "wait");
 		}
-		midorator_options(cmd[0]+3, buf, cmd[2]);
+		char *newcmd = midorator_shellmerge(cmd + 2, cmdlen - 2);
+		midorator_options(cmd[0]+3, buf, newcmd);
+		g_free(newcmd);
 		g_free(buf);
 
 	} else if (strcmp(cmd[0], "next") == 0) {
+		midorator_cmdlen_assert(1);
 		midorator_search(web_view, NULL, true, false);
 
 	} else if (strcmp(cmd[0], "next!") == 0) {
+		midorator_cmdlen_assert(1);
 		midorator_search(web_view, NULL, false, false);
 
-	} else if (strcmp(cmd[0], "entry") == 0 && cmd[1]) {
+	} else if (strcmp(cmd[0], "entry") == 0) {
+		midorator_cmdlen_assert(2);
 		midorator_entry(web_view, cmd[1]);
 
-	} else if (strcmp(cmd[0], "source") == 0 && cmd[1]) {
+	} else if (strcmp(cmd[0], "source") == 0) {
+		midorator_cmdlen_assert(2);
 		FILE *f = fopen(cmd[1], "r");
 		if (!f && cmd[1][0] == '~') {
 			const char *home = getenv("HOME");
@@ -1693,9 +1717,11 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		}
 
 	} else if (strcmp(cmd[0], "submit") == 0) {
+		midorator_cmdlen_assert(1);
 		midorator_submit_form(web_view);
 
 	} else if (strcmp(cmd[0], "scroll") == 0) {
+		midorator_cmdlen_assert_range(4, 5);
 		if (!cmd[1][0] || !cmd[2][0] || !cmd[3][0]) {
 			free(cmd);
 			free(buf);
@@ -1728,17 +1754,21 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		gtk_adjustment_set_value(a, pos);
 
 	} else if (strcmp(cmd[0], "wq") == 0) {
+		midorator_cmdlen_assert(1);
 		GtkWidget *w;
 		for (w = web_view; w && !GTK_IS_WINDOW(w); w = gtk_widget_get_parent(w));
 		if (w)
 			gtk_widget_destroy(w);
 
 	} else if (strcmp(cmd[0], "js") == 0) {
+		midorator_cmdlen_assert(2);
+		int i;
 		for (i=1; cmd[i]; i++) {
 			webkit_web_view_execute_script(WEBKIT_WEB_VIEW(web_view), cmd[i]);
 		}
 
 	} else if (strcmp(cmd[0], "hint") == 0) {
+		midorator_cmdlen_assert(2);
 		if (cmd[1] && cmd[1][0]) {
 			const char *hintchars = midorator_options("option", "hintchars", NULL);
 			if (!hintchars)
@@ -1747,15 +1777,19 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		}
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
+		midorator_cmdlen_assert(1);
 		midorator_hints(web_view, NULL, NULL, NULL);
 
 	} else if (strcmp(cmd[0], "reload") == 0) {
+		midorator_cmdlen_assert(1);
 		webkit_web_view_reload(WEBKIT_WEB_VIEW(web_view));
 
 	} else if (strcmp(cmd[0], "reload!") == 0) {
+		midorator_cmdlen_assert(1);
 		webkit_web_view_reload_bypass_cache(WEBKIT_WEB_VIEW(web_view));
 
-	} else if (strcmp(cmd[0], "go") == 0 && cmd[1] && cmd[1][0]) {
+	} else if (strcmp(cmd[0], "go") == 0) {
+		midorator_cmdlen_assert(2);
 		if (strcmp(cmd[1], "back") == 0) {
 			webkit_web_view_go_back(WEBKIT_WEB_VIEW(web_view));
 		} else if (strcmp(cmd[1], "forth") == 0) {
@@ -1765,18 +1799,21 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		}
 
 	} else if (strcmp(cmd[0], "undo") == 0) {
+		midorator_cmdlen_assert(1);
 		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 		GtkActionGroup *actions = midori_browser_get_action_group(browser);
 		GtkAction *action = gtk_action_group_get_action(actions, "UndoTabClose");
 		gtk_action_activate(action);
 
 	} else if (strcmp(cmd[0], "q") == 0) {
+		midorator_cmdlen_assert(1);
 		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 		GtkActionGroup *actions = midori_browser_get_action_group(browser);
 		GtkAction *action = gtk_action_group_get_action(actions, "TabClose");
 		gtk_action_activate(action);
 
-	} else if (strcmp(cmd[0], "action") == 0 && cmd[1]) {
+	} else if (strcmp(cmd[0], "action") == 0) {
+		midorator_cmdlen_assert(2);
 		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 		GtkActionGroup *actions = midori_browser_get_action_group(browser);
 		GtkAction *action = gtk_action_group_get_action(actions, cmd[1]);
@@ -1786,6 +1823,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			midorator_error(web_view, "No such action: '%s'", cmd[1]);
 
 	} else if (strcmp(cmd[0], "actions") == 0) {
+		midorator_cmdlen_assert(1);
 		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 		GtkActionGroup *actions = midori_browser_get_action_group(browser);
 		midorator_message(web_view, "Known actions are:", NULL, NULL);
@@ -1801,13 +1839,13 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		g_list_free(l);
 
 	} else {
-		midorator_error(web_view, "Invalid command or parameters: %s", cmd[0]);
-		free(cmd);
-		free(buf);
+		midorator_error(web_view, "Invalid command: %s", cmd[0]);
+		g_strfreev(cmd);
+		g_free(buf);
 		return false;
 	}
-	free(cmd);
-	free(buf);
+	g_strfreev(cmd);
+	g_free(buf);
 	return true;
 }
 
