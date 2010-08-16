@@ -1611,8 +1611,10 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		char *uri = midorator_make_uri(cmd + 1);
 		if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
 			char *js = g_uri_unescape_string(uri + strlen("javascript:"), NULL);
-			midorator_process_command(web_view, "js %s", js);
+			char *js2 = g_shell_quote(js);
+			midorator_process_command(web_view, "js %s", js2);
 			g_free(js);
+			g_free(js2);
 		} else
 			webkit_web_view_open(WEBKIT_WEB_VIEW(web_view), uri);
 		//midorator_process_command(web_view, "js document.location = '%s';", uri);
