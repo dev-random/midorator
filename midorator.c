@@ -934,6 +934,28 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 	return JSValueMakeNull(ctx);
 }
 
+static_f JSValueRef midorator_js_private_callback(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
+	if (argumentCount < 1)
+		return JSValueMakeNull(ctx);
+	char *cmd = NULL;
+	int i;
+	for (i=0; i < argumentCount; i++) {
+		char *cmdel = midorator_js_value_to_string(ctx, arguments[i]);
+		char *cmdsh = g_shell_quote(cmdel);
+		free(cmdel);
+		if (cmd) {
+			char *cmd2 = g_strconcat(cmd, " ", cmdsh, NULL);
+			g_free(cmdsh);
+			g_free(cmd);
+			cmd = cmd2;
+		} else
+			cmd = cmdsh;
+	}
+	bool ret = midorator_process_command(midorator_js_get_wv(ctx), "%s", cmd);
+	g_free(cmd);
+	return JSValueMakeBoolean(ctx, ret);
+}
+
 static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const char *follow, const char *cmd) {
 	int i;
 	midorator_js_delhints(ctx, NULL);
@@ -1065,6 +1087,20 @@ static_f void midorator_js_go(JSContextRef ctx, const char *direction) {
 	g_strfreev(res);
 }
 
+static_f void midorator_js_execute_user_script(JSContextRef ctx, const char *code) {
+	JSStringRef s = JSStringCreateWithUTF8CString("command");
+	JSStringRef body = JSStringCreateWithUTF8CString(code);
+	JSObjectRef cb = JSObjectMakeFunctionWithCallback(ctx, s, midorator_js_private_callback);
+	JSValueRef e = NULL;
+	JSObjectRef script = JSObjectMakeFunction(ctx, NULL, 1, &s, body, NULL, 1, &e);
+	JSStringRelease(body);
+	JSStringRelease(s);
+	if (midorator_js_error(ctx, e, "Parsing user script"))
+		return;
+	JSObjectCallAsFunction(ctx, script, NULL, 1, &cb, &e);
+	midorator_js_error(ctx, e, "Executing user script");
+}
+
 static_f void midorator_make_js_callback(JSContextRef ctx, GtkWidget *web_view) {
 	JSObjectRef global = JSContextGetGlobalObject(ctx);
 
@@ -1162,6 +1198,17 @@ static_f void midorator_submit_form(GtkWidget* web_view) {
 	if (!form)
 		return;
 	midorator_js_form_click(ctx, form, true);
+}
+
+static_f void midorator_execute_user_script(GtkWidget *web_view, const char *code) {
+	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
+	if (!frame)
+		return;
+	JSGlobalContextRef ctx = webkit_web_frame_get_global_context(frame);
+	if (!ctx)
+		return;
+	midorator_make_js_callback(ctx, GTK_WIDGET(web_view));
+	midorator_js_execute_user_script(ctx, code);
 }
 
 static_f GtkStatusbar* midorator_find_sb(GtkWidget *w) {
@@ -1764,10 +1811,8 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 
 	} else if (strcmp(cmd[0], "js") == 0) {
 		midorator_cmdlen_assert(2);
-		int i;
-		for (i=1; cmd[i]; i++) {
-			webkit_web_view_execute_script(WEBKIT_WEB_VIEW(web_view), cmd[i]);
-		}
+		midorator_execute_user_script(web_view, cmd[1]);
+		//webkit_web_view_execute_script(WEBKIT_WEB_VIEW(web_view), cmd[1]);
 
 	} else if (strcmp(cmd[0], "hint") == 0) {
 		midorator_cmdlen_assert(2);
