@@ -1325,12 +1325,52 @@ static_f void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
 		midorator_search(web_view, t + 1, false, false);
 }
 
+static_f void midorator_entry_history(GtkEntry* e, bool up, bool store) {
+	static GList *hist = NULL;
+	const char *fulltext = gtk_entry_get_text(e);
+	GList *i;
+	if (store) {
+		for (i = g_list_first(hist); i; i = i ? i->next : g_list_first(hist))
+			if (g_str_equal((char*)i->data, fulltext)) {
+				g_free(i->data);
+				GList *p = i->prev;
+				hist = g_list_delete_link(hist, i);
+				i = p;
+			}
+		hist = g_list_prepend(hist, g_strdup(fulltext));
+		return;
+	}
+	int cursor = gtk_editable_get_position(GTK_EDITABLE(e));
+	char *text = g_strdup(fulltext);
+	g_utf8_offset_to_pointer(text, cursor)[0] = 0;
+	for (i = g_list_first(hist); i && strcmp((char*)i->data, fulltext); i = i->next);
+	if (up) {
+		for (i = i ? i : g_list_first(hist); i; i = i->next)
+			if (strncmp((char*)i->data, text, strlen(text)) == 0 && strcmp((char*)i->data, fulltext) != 0)
+				break;
+	} else {
+		for (i = i ? i : g_list_last(hist); i; i = i->prev)
+			if (strncmp((char*)i->data, text, strlen(text)) == 0 && strcmp((char*)i->data, fulltext) != 0)
+				break;
+	}
+	g_free(text);
+	if (i) {
+		gtk_entry_set_text(e, (char*)i->data);
+		gtk_editable_set_position(GTK_EDITABLE(e), cursor);
+	}
+}
+
 static_f gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* event, GtkWidget* web_view) {
 	if (event->keyval == GDK_Escape) {
 		midorator_entry(web_view, NULL);
 		return true;
+	} else if (event->keyval == GDK_Up) {
+		midorator_entry_history(e, true, false);
+	} else if (event->keyval == GDK_Down) {
+		midorator_entry_history(e, false, false);
 	} else if (event->keyval == GDK_Return) {
 		char *t = g_strdup(gtk_entry_get_text(e));
+		midorator_entry_history(e, false, true);
 		midorator_entry(web_view, NULL);
 		if (t[0] == ':')
 			midorator_process_command(web_view, "%s", t + 1);
