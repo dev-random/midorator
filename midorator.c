@@ -86,6 +86,24 @@ GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	} else if (strcmp(name, "tablabel") == 0) {
 		for (w = web_view; w && !GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)); w = gtk_widget_get_parent(w));
 		return gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w);
+	} else if (strcmp(name, "tablabeltext") == 0) {
+		for (w = web_view; w && !GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)); w = gtk_widget_get_parent(w));
+		GtkContainer *cont = GTK_CONTAINER(gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w));
+		GList *ch = gtk_container_get_children(cont);
+		if (ch && GTK_IS_CONTAINER(ch->data)) {
+			cont = GTK_CONTAINER(ch->data);
+			g_list_free(ch);
+			ch = gtk_container_get_children(cont);
+		}
+		GList *i;
+		for (i = ch; i; i = i->next)
+			if (GTK_IS_LABEL(i->data)) {
+				w = GTK_WIDGET(i->data);
+				g_list_free(ch);
+				return w;
+			}
+		g_list_free(ch);
+		return NULL;
 	} else if (strcmp(name, "tabs") == 0) {
 		for (w = web_view; w && !GTK_IS_NOTEBOOK(w); w = gtk_widget_get_parent(w));
 		return w;
@@ -114,46 +132,64 @@ void midorator_setprop(GtkWidget *web_view, const char *widget, const char *name
 		midorator_error(web_view, "Widget not found: %s", widget);
 		return;
 	}
+	GtkWidget *p = NULL;
 	GParamSpec *sp = g_object_class_find_property(G_OBJECT_GET_CLASS(w), name);
+	if (!sp) {
+		p = gtk_widget_get_parent(w);
+		sp = gtk_container_class_find_child_property(G_OBJECT_GET_CLASS(p), name);
+	}
 	if (!sp) {
 		midorator_error(web_view, "Property for widget '%s' not found: %s", widget, name);
 		return;
 	}
 	int num = atoi(value);
 	double d = strtod(value, NULL);
+	GValue v = {};
+	g_value_init(&v, sp->value_type);
 	switch (sp->value_type) {
 		case G_TYPE_STRING:
-			g_object_set(G_OBJECT(w), name, value, NULL);
+			g_value_set_string(&v, value);
 			break;
 		case G_TYPE_ENUM:
+			g_value_set_enum(&v, num);
+			break;
 		case G_TYPE_INT:
-			g_object_set(G_OBJECT(w), name, num, NULL);
+			g_value_set_int(&v, num);
 			break;
 		case G_TYPE_UINT:
-			g_object_set(G_OBJECT(w), name, (unsigned int)num, NULL);
+			g_value_set_uint(&v, num);
 			break;
 		case G_TYPE_LONG:
-			g_object_set(G_OBJECT(w), name, (long)num, NULL);
+			g_value_set_long(&v, num);
 			break;
 		case G_TYPE_ULONG:
-			g_object_set(G_OBJECT(w), name, (unsigned long)num, NULL);
+			g_value_set_ulong(&v, num);
 			break;
 		case G_TYPE_INT64:
-			g_object_set(G_OBJECT(w), name, (int64_t)num, NULL);
+			g_value_set_int64(&v, num);
 			break;
 		case G_TYPE_UINT64:
-			g_object_set(G_OBJECT(w), name, (uint64_t)num, NULL);
+			g_value_set_uint64(&v, num);
 			break;
 		case G_TYPE_BOOLEAN:
-			g_object_set(G_OBJECT(w), name, (gboolean)num, NULL);
+			g_value_set_boolean(&v, (g_ascii_strcasecmp(value, "true") == 0) ? true : (g_ascii_strcasecmp(value, "false") == 0) ? false : num);
 			break;
 		case G_TYPE_FLOAT:
-			g_object_set(G_OBJECT(w), name, (float)d, NULL);
+			g_value_set_float(&v, d);
 			break;
 		case G_TYPE_DOUBLE:
-			g_object_set(G_OBJECT(w), name, d, NULL);
+			g_value_set_double(&v, d);
 			break;
+		default:
+			midorator_error(web_view, "Unknown property type: '%s'", g_type_name(sp->value_type));
+			g_value_unset(&v);
+			return;
 	}
+	if (p)
+		gtk_container_child_set_property(GTK_CONTAINER(p), G_OBJECT(w), name, &v);
+	else
+		g_object_set_property(G_OBJECT(w), name, &v);
+	g_value_unset(&v);
 }
 
 void midorator_setclipboard(GdkAtom atom, const char *str) {
