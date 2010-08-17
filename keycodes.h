@@ -1,5 +1,31 @@
 
 static void midorator_init_keycodes() {
+	// Modifiers
+	midorator_options("modifier", "S", "1");
+	midorator_options("modifier", "Shift", "1");
+	midorator_options("modifier", "C", "4");
+	midorator_options("modifier", "Ctrl", "4");
+	midorator_options("modifier", "Control", "4");
+	midorator_options("modifier", "A", "8");
+	midorator_options("modifier", "M", "8");
+	midorator_options("modifier", "Alt", "8");
+	midorator_options("modifier", "1", "8");
+	midorator_options("modifier", "Mod1", "8");
+	midorator_options("modifier", "2", "10");
+	midorator_options("modifier", "Mod2", "10");
+	midorator_options("modifier", "3", "20");
+	midorator_options("modifier", "Mod3", "20");
+	midorator_options("modifier", "4", "40");
+	midorator_options("modifier", "Mod4", "40");
+	midorator_options("modifier", "W", "40");
+	midorator_options("modifier", "Win", "40");
+	midorator_options("modifier", "L", "40");
+	midorator_options("modifier", "Lin", "40"); // ;)
+	midorator_options("modifier", "Super", "40");
+	midorator_options("modifier", "5", "80");
+	midorator_options("modifier", "Mod5", "80");
+
+	// Vim-like names of some keys
 	midorator_options("keycode", "CR", "ff0d");
 	midorator_options("keycode", "Enter", "ff0d");
 	midorator_options("keycode", "Esc", "ff1b");

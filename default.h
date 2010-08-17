@@ -40,6 +40,7 @@
 	midorator_process_command(web_view, "cmdnmap gt widget tabs page %%i");
 	midorator_process_command(web_view, "cmdmap gT action TabPrevious");
 	midorator_process_command(web_view, "cmdmap <CR> submit");
+	midorator_process_command(web_view, "cmdmap <C-c> action Stop");
 	midorator_process_command(web_view, "");
 	midorator_process_command(web_view, "cmdmap bm action Menubar");
 	midorator_process_command(web_view, "cmdmap bn action Navigationbar");

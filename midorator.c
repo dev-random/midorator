@@ -1546,6 +1546,15 @@ static_f char* midorator_make_uri(char **args) {
 	return ret;
 }
 
+bool (*midorator_midori_browser_key_press_event_orig) (GtkWidget* widget, GdkEventKey* event) = NULL;
+
+static_f bool midorator_midori_browser_key_press_event_cb (GtkWidget* widget, GdkEventKey* event) {
+	if (gtk_window_propagate_key_event (GTK_WINDOW(widget), event))
+		return true;
+	else
+		return midorator_midori_browser_key_press_event_orig(widget, event);
+}
+
 static_f char midorator_mode(GtkWidget* web_view, char mode) {
 	static char oldmode = 'n';
 	if (mode)
@@ -1555,8 +1564,18 @@ static_f char midorator_mode(GtkWidget* web_view, char mode) {
 		modestring = "";
 	else if (oldmode == 'i')
 		modestring = "-- INSERT --";
-	if (web_view)
+	if (web_view) {
 		midorator_show_mode(web_view, modestring);
+
+		// Hack to let our key sequences override Midori's accelerators.
+		// (property 'gtk-enable-accels' doesn't work in Midori)
+		GtkWidget *win = gtk_widget_get_toplevel(GTK_WIDGET(web_view));
+		GtkWidgetClass *class = GTK_WIDGET_CLASS(G_OBJECT_GET_CLASS(G_OBJECT(win)));
+		if (class->key_press_event != midorator_midori_browser_key_press_event_cb) {
+			midorator_midori_browser_key_press_event_orig = class->key_press_event;
+			class->key_press_event = midorator_midori_browser_key_press_event_cb;
+		}
+	}
 	return oldmode;
 }
 
@@ -1579,9 +1598,8 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	if (event->keyval >= GDK_0 && event->keyval <= GDK_9) {
 		numprefix = numprefix * 10 + event->keyval - GDK_0;
 		return true;
-	} else if (event->keyval == GDK_Shift_L || event->keyval == GDK_Shift_R ||
-			event->keyval == GDK_Alt_L || event->keyval == GDK_Alt_R ||
-			event->keyval == GDK_Control_L || event->keyval == GDK_Control_R) {
+	} else if (event->is_modifier) {
+		return true;
 		// Do nothing
 	} else {
 		if (!sequence)
@@ -1589,6 +1607,14 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 		else {
 			char *os = sequence;
 			sequence = g_strdup_printf("%s%03x;", os, event->keyval);
+			g_free(os);
+		}
+		int mask = GDK_CONTROL_MASK | GDK_MOD1_MASK | GDK_MOD2_MASK | GDK_MOD3_MASK | GDK_MOD4_MASK | GDK_MOD5_MASK;
+		if (event->keyval > 127)
+			mask |= GDK_SHIFT_MASK;
+		if (event->state & mask) {
+			char *os = sequence;
+			sequence = g_strdup_printf("%s%x;", os, event->state & mask);
 			g_free(os);
 		}
 		const char *meaning = midorator_options("map", sequence, NULL);
@@ -1750,15 +1776,31 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 					return false;
 				}
 				*end = 0;
-				const char *val = midorator_options("keycode", cmd[1] + i + 1, NULL);
+				char *key = cmd[1] + i + 1;
+				int mod = 0;
+				char *hyph;
+				while ((hyph = strchr(key, '-'))) {
+					hyph[0] = 0;
+					const char *val = midorator_options("modifier", key, NULL);
+					if (!val) {
+						midorator_error(web_view, "Unknown modifier: <%s->", key);
+						g_free(buf);
+						free(cmd);
+						free(buf);
+						return false;
+					}
+					mod |= strtol(val, NULL, 16);
+					key = hyph + 1;
+				}
+				const char *val = midorator_options("keycode", key, NULL);
 				if (!val) {
-					midorator_error(web_view, "Unknown key: <%s>", cmd[1] + i + 1);
+					midorator_error(web_view, "Unknown key: <%s>", key);
 					g_free(buf);
 					free(cmd);
 					free(buf);
 					return false;
 				}
-				char *nbuf = g_strdup_printf("%s%03x;", buf, (int)strtol(val, NULL, 16));
+				char *nbuf = g_strdup_printf(mod ? "%s%03x;%x;" : "%s%03x;", buf, (int)strtol(val, NULL, 16), mod);
 				g_free(buf);
 				buf = nbuf;
 				i = end - cmd[1];
@@ -1937,7 +1979,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 }
 
 static_f void midorator_context_ready_cb (WebKitWebView* web_view, WebKitWebFrame* web_frame, JSContextRef js_context, JSObjectRef js_window, MidoriExtension* extension) {
-	midorator_make_js_callback(js_context, GTK_WIDGET(web_view));
+//	midorator_make_js_callback(js_context, GTK_WIDGET(web_view));
 }
 
 static_f gboolean midorator_navrequest_cb (WebKitWebView *web_view, WebKitWebFrame *frame, WebKitNetworkRequest *request, WebKitWebNavigationAction *navigation_action, WebKitWebPolicyDecision *policy_decision, MidoriExtension* extension) {
@@ -1956,7 +1998,9 @@ static_f void midorator_del_tab_cb (MidoriView* view, MidoriBrowser* browser) {
 	g_signal_handlers_disconnect_by_func (
 		web_view, midorator_key_press_event_cb, browser);
 	g_signal_handlers_disconnect_by_func (
-		web_view, midorator_context_ready_cb, browser);
+		web_view, midorator_context_ready_cb, extension);
+	g_signal_handlers_disconnect_by_func (
+		web_view, midorator_navrequest_cb, extension);
 }
 
 static_f void midorator_default_config (GtkWidget* web_view) {
