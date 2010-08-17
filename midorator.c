@@ -80,6 +80,12 @@ GtkWidget *midori_view_get_web_view(MidoriView *view) {
 	return ret;
 }
 
+GtkWidget *midori_view_from_web_view(GtkWidget *web_view) {
+	GtkWidget *ret;
+	for (ret = web_view; ret && !MIDORI_IS_VIEW(ret); ret = gtk_widget_get_parent(ret));
+	return ret;
+}
+
 void midorator_error(GtkWidget *web_view, char *fmt, ...) {
 	va_list l;
 	va_start(l, fmt);
@@ -372,7 +378,7 @@ static_f bool midorator_js_is_js_enabled(JSContextRef ctx) {
 	GtkWidget *web_view = midorator_js_get_wv(ctx);
 	if (!web_view)
 		return false;
-	GtkWidget *view = gtk_widget_get_parent(gtk_widget_get_parent(web_view));
+	GtkWidget *view = midori_view_from_web_view(web_view);
 	MidoriWebSettings* settings = katze_object_get_object (web_view, "settings");
 	if (!settings) {
 		MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
@@ -1788,7 +1794,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
 		midorator_cmdlen_assert_range(2, 1025);
 		char *uri = midorator_make_uri(cmd + 1);
-		g_signal_emit_by_name(gtk_widget_get_parent(gtk_widget_get_parent(web_view)), "new-tab", uri, false, NULL);
+		g_signal_emit_by_name(midori_view_from_web_view(web_view), "new-tab", uri, false, NULL);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "open") == 0) {
