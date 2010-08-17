@@ -43,6 +43,42 @@ static_f char* midorator_html_decode(char *str);
 #undef g_signal_handlers_disconnect_by_func
 #define g_signal_handlers_disconnect_by_func(i, f, d) (g_signal_handlers_disconnect_matched((i), G_SIGNAL_MATCH_FUNC, 0, 0, NULL, (f), NULL))
 
+// recursively search for widget
+#define midorator_findwidget_macro(parent, iter, test) \
+{	\
+	GList *__l; \
+	GList *__i; \
+	bool __added; \
+	__l = gtk_container_get_children(GTK_CONTAINER((parent))); \
+	iter = NULL; \
+	do { \
+		__added = false; \
+		for (__i = __l; __i; __i = __i ? __i->next : __l) { \
+			iter = GTK_WIDGET(__i->data); \
+			if (test) { \
+				__added = false; \
+				break; \
+			} \
+			if (GTK_IS_CONTAINER(__i->data)) { \
+				GtkContainer *c = GTK_CONTAINER(__i->data); \
+				GList *prev = __i->prev; \
+				__l = g_list_delete_link(__l, __i); \
+				__i = prev; \
+				GList *l2 = gtk_container_get_children(c); \
+				__l = g_list_concat(__l, l2); \
+				__added = true; \
+			} \
+		} \
+	} while (__added); \
+}
+
+// replacement of original function, made to work with midori-0.2.4 that doesn't have it
+GtkWidget *midori_view_get_web_view(MidoriView *view) {
+	GtkWidget *w = GTK_WIDGET(view);
+	GtkWidget *ret;
+	midorator_findwidget_macro(w, ret, WEBKIT_IS_WEB_VIEW(ret));
+	return ret;
+}
 
 void midorator_error(GtkWidget *web_view, char *fmt, ...) {
 	va_list l;
