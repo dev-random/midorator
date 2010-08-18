@@ -348,32 +348,6 @@ static_f void midorator_js_setstrprop(JSContextRef ctx, JSObjectRef obj, const c
 	JSStringRelease(vs);
 }
 
-static_f JSObjectRef midorator_js_make_event(JSContextRef ctx, JSObjectRef obj) {
-	JSObjectRef ret = JSObjectMake(ctx, NULL, NULL);
-
-	JSStringRef stopPropagation_n = JSStringCreateWithUTF8CString("stopPropagation");
-	JSStringRef stopPropagation_s = JSStringCreateWithUTF8CString("this.cancelBubble = true;");
-	JSObjectRef stopPropagation = JSObjectMakeFunction(ctx, stopPropagation_n, 0, NULL, stopPropagation_s, NULL, 0, NULL);
-	JSObjectSetProperty(ctx, ret, stopPropagation_n, stopPropagation, kJSPropertyAttributeReadOnly, NULL);
-	JSStringRelease(stopPropagation_s);
-	JSStringRelease(stopPropagation_n);
-
-	JSStringRef preventDefault_n = JSStringCreateWithUTF8CString("preventDefault");
-	JSStringRef preventDefault_s = JSStringCreateWithUTF8CString("this.returnValue = true;");
-	JSObjectRef preventDefault = JSObjectMakeFunction(ctx, preventDefault_n, 0, NULL, preventDefault_s, NULL, 0, NULL);
-	JSObjectSetProperty(ctx, ret, preventDefault_n, preventDefault, kJSPropertyAttributeReadOnly, NULL);
-	JSStringRelease(preventDefault_s);
-	JSStringRelease(preventDefault_n);
-
-	if (obj) {
-		JSStringRef target = JSStringCreateWithUTF8CString("target");
-		JSObjectSetProperty(ctx, ret, target, obj, kJSPropertyAttributeReadOnly, NULL);
-		JSStringRelease(target);
-	}
-
-	return ret;
-}
-
 static_f bool midorator_js_is_js_enabled(JSContextRef ctx) {
 	GtkWidget *web_view = midorator_js_get_wv(ctx);
 	if (!web_view)
@@ -409,27 +383,25 @@ static_f JSValueRef midorator_js_callprop(JSContextRef ctx, JSObjectRef obj, con
 	return ret;
 }
 
-static_f bool midorator_js_handle(JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
+static_f bool midorator_js_handle(JSContextRef ctx, JSObjectRef obj, const char *name, JSValueRef event) {
 	if (!midorator_js_is_js_enabled(ctx))
 		return true;
-	if (argc) {
-		JSObjectRef window = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "window"), NULL);
-		JSStringRef sw = JSStringCreateWithUTF8CString("event");
-		JSObjectSetProperty(ctx, window, sw, argv[0], kJSPropertyAttributeReadOnly, NULL);
-		JSStringRelease(sw);
+	if (name && name[0] == 'o' && name[1] == 'n')
+		name += 2;
+	if (!event) {
+		JSValueRef doc = midorator_js_getprop(ctx, obj, "ownerDocument");
+		JSStringRef s = JSStringCreateWithUTF8CString("Event");
+		JSValueRef v = JSValueMakeString(ctx, s);
+		JSStringRelease(s);
+		event = midorator_js_callprop(ctx, doc, "createEvent", 1, &v);
+
+		s = JSStringCreateWithUTF8CString(name);
+		JSValueRef args[] = { JSValueMakeString(ctx, s), JSValueMakeBoolean(ctx, true), JSValueMakeBoolean(ctx, true) };
+		JSStringRelease(s);
+		midorator_js_callprop(ctx, JSValueToObject(ctx, event, NULL), "initEvent", 3, args);
 	}
-	for (/*obj=obj*/; obj; obj = JSValueToObject(ctx, midorator_js_getprop(ctx, obj, "parentNode"), NULL)) {
-		JSValueRef ret = midorator_js_callprop(ctx, obj, name, argc, argv);
-		if (ret) {
-			if (argc && midorator_js_hasprop(ctx, JSValueToObject(ctx, argv[0], NULL), "cancelBubble"))
-				return false;
-			if (JSValueIsBoolean(ctx, ret) && !JSValueToBoolean(ctx, ret))
-				return false;
-		}
-	}
-	if (argc && midorator_js_hasprop(ctx, JSValueToObject(ctx, argv[0], NULL), "returnValue"))
-		return false;
-	return true;
+	JSValueRef ret = midorator_js_callprop(ctx, obj, "dispatchEvent", 1, &event);
+	return JSValueToBoolean(ctx, ret);
 }
 
 typedef struct {
@@ -842,8 +814,7 @@ static_f void midorator_js_form_click(JSContextRef ctx, JSObjectRef item, bool f
 
 	if (form) {
 		if (!force_submit && JSValueToObject(ctx, midorator_js_getprop(ctx, form, "onsubmit"), NULL)) {
-			JSValueRef ev = midorator_js_make_event(ctx, form);
-			if (midorator_js_handle(ctx, form, "onsubmit", 1, &ev))
+			if (midorator_js_handle(ctx, form, "onsubmit", NULL))
 				return;
 		}
 		// TODO: do something with "name=value" of button
@@ -886,8 +857,7 @@ static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item) {
 		return;
 	}
 	midorator_js_callprop(ctx, item, "focus", 0, NULL);
-	JSValueRef ev = midorator_js_make_event(ctx, item);
-	bool r = midorator_js_handle(ctx, item, "onclick", 1, &ev);
+	bool r = midorator_js_handle(ctx, item, "onclick", NULL);
 	if (!r)
 		return;
 	char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "href"));
