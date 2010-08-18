@@ -72,6 +72,9 @@ static_f char* midorator_html_decode(char *str);
 	} while (__added); \
 }
 
+#define midorator_findwidget_up_macro(child, iter, test) \
+	for ((iter) = GTK_WIDGET((child)); (iter) && !(test); (iter) = gtk_widget_get_parent(GTK_WIDGET((iter))));
+
 // replacement of original function, made to work with midori-0.2.4 that doesn't have it
 GtkWidget *midori_view_get_web_view(MidoriView *view) {
 	GtkWidget *w = GTK_WIDGET(view);
@@ -123,49 +126,36 @@ GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	if (strcmp(name, "view") == 0)
 		return web_view;
 	else if (strcmp(name, "tab") == 0) {
-		for (w = web_view; w && !GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)); w = gtk_widget_get_parent(w));
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
 		return w;
 	} else if (strcmp(name, "tablabel") == 0) {
-		for (w = web_view; w && !GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)); w = gtk_widget_get_parent(w));
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
 		return gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w);
 	} else if (strcmp(name, "tablabeltext") == 0) {
-		for (w = web_view; w && !GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)); w = gtk_widget_get_parent(w));
-		GtkContainer *cont = GTK_CONTAINER(gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w));
-		GList *ch = gtk_container_get_children(cont);
-		if (ch && GTK_IS_CONTAINER(ch->data)) {
-			cont = GTK_CONTAINER(ch->data);
-			g_list_free(ch);
-			ch = gtk_container_get_children(cont);
-		}
-		GList *i;
-		for (i = ch; i; i = i->next)
-			if (GTK_IS_LABEL(i->data)) {
-				w = GTK_WIDGET(i->data);
-				g_list_free(ch);
-				return w;
-			}
-		g_list_free(ch);
-		return NULL;
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+		midorator_findwidget_macro(gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w), w, GTK_IS_LABEL(w));
+		return w;
 	} else if (strcmp(name, "tabs") == 0) {
-		for (w = web_view; w && !GTK_IS_NOTEBOOK(w); w = gtk_widget_get_parent(w));
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(w));
 		return w;
 	} else if (strcmp(name, "scrollbox") == 0) {
-		for (w = web_view; w && !GTK_IS_SCROLLED_WINDOW(w); w = gtk_widget_get_parent(w));
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
 		return w;
 	} else if (strcmp(name, "hscroll") == 0) {
-		for (w = web_view; w && !GTK_IS_SCROLLED_WINDOW(w); w = gtk_widget_get_parent(w));
-		if (!w)
-			return NULL;
-		return GTK_WIDGET(gtk_scrolled_window_get_hscrollbar(GTK_SCROLLED_WINDOW(w)));
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
+		return w ? GTK_WIDGET(gtk_scrolled_window_get_hscrollbar(GTK_SCROLLED_WINDOW(w))) : NULL;
 	} else if (strcmp(name, "vscroll") == 0) {
-		for (w = web_view; w && !GTK_IS_SCROLLED_WINDOW(w); w = gtk_widget_get_parent(w));
-		if (!w)
-			return NULL;
-		return GTK_WIDGET(gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(w)));
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
+		return w ? GTK_WIDGET(gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(w))) : NULL;
 	} else if (strcmp(name, "statusbar") == 0) {
 		return GTK_WIDGET(midorator_find_sb(web_view));
-	} else
+	} else {
+		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+		midorator_findwidget_macro(w, w, strcmp(gtk_widget_get_name(w), name) == 0);
+		if (!w)
+			midorator_findwidget_macro(gtk_widget_get_toplevel(web_view), w, strcmp(gtk_widget_get_name(w), name) == 0);
 		return NULL;
+	}
 }
 
 void midorator_setprop(GtkWidget *web_view, const char *widget, const char *name, const char *value) {
