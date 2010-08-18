@@ -353,6 +353,28 @@ static_f bool midorator_js_is_js_enabled(JSContextRef ctx) {
 	return katze_object_get_boolean(settings, "enable-scripts");
 }
 
+static_f JSValueRef midorator_js_callprop_proto(JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
+	JSValueRef prop = midorator_js_getprop(ctx, midorator_js_v2o(ctx, JSObjectGetPrototype(ctx, obj)), name);
+	if (!prop || !JSValueIsObject(ctx, prop)) {
+		//midorator_error(midorator_js_get_wv(ctx), "No such method: %s", name);
+		return NULL;
+	}
+	JSObjectRef handler = JSValueToObject(ctx, prop, NULL);
+	if (!handler)
+		return NULL;
+	if (!JSObjectIsFunction(ctx, handler)) {
+		char *s = midorator_js_value_to_string(ctx, handler);
+		midorator_error(midorator_js_get_wv(ctx), "Not a function: %s (%s)", name, s);
+		free(s);
+		return NULL;
+	}
+	JSValueRef ex = NULL;
+	JSValueRef ret = JSObjectCallAsFunction(ctx, handler, obj, argc, argv, &ex);
+	if (midorator_js_error(ctx, ex, "Error while calling JS method"))
+		return NULL;
+	return ret;
+}
+
 static_f JSValueRef midorator_js_callprop(JSContextRef ctx, JSObjectRef obj, const char *name, int argc, const JSValueRef argv[]) {
 	JSValueRef prop = midorator_js_getprop(ctx, obj, name);
 	if (!prop || !JSValueIsObject(ctx, prop)) {
@@ -363,7 +385,9 @@ static_f JSValueRef midorator_js_callprop(JSContextRef ctx, JSObjectRef obj, con
 	if (!handler)
 		return NULL;
 	if (!JSObjectIsFunction(ctx, handler)) {
-		midorator_error(midorator_js_get_wv(ctx), "Not a function: %s", name);
+		char *s = midorator_js_value_to_string(ctx, handler);
+		midorator_error(midorator_js_get_wv(ctx), "Not a function: %s (%s)", name, s);
+		free(s);
 		return NULL;
 	}
 	JSValueRef ex = NULL;
@@ -383,14 +407,14 @@ static_f bool midorator_js_handle(JSContextRef ctx, JSObjectRef obj, const char 
 		JSStringRef s = JSStringCreateWithUTF8CString("Event");
 		JSValueRef v = JSValueMakeString(ctx, s);
 		JSStringRelease(s);
-		event = midorator_js_callprop(ctx, doc, "createEvent", 1, &v);
+		event = midorator_js_callprop_proto(ctx, doc, "createEvent", 1, &v);
 
 		s = JSStringCreateWithUTF8CString(name);
 		JSValueRef args[] = { JSValueMakeString(ctx, s), JSValueMakeBoolean(ctx, true), JSValueMakeBoolean(ctx, true) };
 		JSStringRelease(s);
 		midorator_js_callprop(ctx, JSValueToObject(ctx, event, NULL), "initEvent", 3, args);
 	}
-	JSValueRef ret = midorator_js_callprop(ctx, obj, "dispatchEvent", 1, &event);
+	JSValueRef ret = midorator_js_callprop_proto(ctx, obj, "dispatchEvent", 1, &event);
 	return JSValueToBoolean(ctx, ret);
 }
 
@@ -480,7 +504,7 @@ static_f void midorator_js_getrelpos(JSContextRef ctx, JSObjectRef el, double *l
 
 static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, JSObjectRef el) {
 	struct _rect ret = { -1, -1, -1, -1 };
-	JSObjectRef rect_o = midorator_js_v2o(ctx, midorator_js_callprop(ctx, el, "getBoundingClientRect", 0, NULL));
+	JSObjectRef rect_o = midorator_js_v2o(ctx, midorator_js_callprop_proto(ctx, el, "getBoundingClientRect", 0, NULL));
 	if (!rect_o)
 		return ret;
 	ret.l = JSValueToNumber(ctx, midorator_js_getprop(ctx, rect_o, "left"), NULL);
@@ -537,7 +561,7 @@ static_f bool midorator_js_is_visible(JSContextRef ctx, JSObjectRef el) {
 	r.w = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerWidth"), NULL);
 	r.h = JSValueToNumber(ctx, midorator_js_getprop(ctx, w, "innerHeight"), NULL);
 	for (i = el; JSValueToBoolean(ctx, midorator_js_getprop(ctx, i, "parentElement")); i = JSValueToObject(ctx, midorator_js_getprop(ctx, i, "parentElement"), NULL)) {
-		JSObjectRef style = midorator_js_v2o(ctx, midorator_js_callprop(ctx, w, "getComputedStyle", 1, &i));
+		JSObjectRef style = midorator_js_v2o(ctx, midorator_js_callprop_proto(ctx, w, "getComputedStyle", 1, &i));
 		if (i != el) {
 			char *of = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "overflow"));
 			char *ofx = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, style, "overflowX"));
@@ -680,12 +704,12 @@ static_f void midorator_js_delhints(JSContextRef ctx, JSObjectRef win) {
 	JSStringRef s = JSStringCreateWithUTF8CString("midorator_hint");
 	JSValueRef vs = JSValueMakeString(ctx, s);
 	JSStringRelease(s);
-	JSObjectRef hints = JSValueToObject(ctx, midorator_js_callprop(ctx, doc, "getElementsByName", 1, &vs), NULL);
+	JSObjectRef hints = JSValueToObject(ctx, midorator_js_callprop_proto(ctx, doc, "getElementsByName", 1, &vs), NULL);
 
 	midorator_js_array_iter iter;
 	for (iter = midorator_js_array_last(ctx, hints); iter.val; iter = midorator_js_array_prev(iter)) {
 		JSObjectRef parent = midorator_js_v2o(ctx, midorator_js_getprop(ctx, midorator_js_v2o(ctx, iter.val), "parentNode"));
-		midorator_js_callprop(ctx, parent, "removeChild", 1, &iter.val);
+		midorator_js_callprop_proto(ctx, parent, "removeChild", 1, &iter.val);
 	}
 
 	for (iter = midorator_js_array_first(ctx, JSValueToObject(ctx, midorator_js_getprop(ctx, win, "frames"), NULL)); iter.val; iter = midorator_js_array_next(iter))
@@ -705,7 +729,7 @@ static_f JSObjectRef midorator_js_create_element(JSContextRef ctx, const char *t
 	}
 	JSStringRef sr = JSStringCreateWithUTF8CString(tag);
 	JSValueRef str = JSValueMakeString(ctx, sr);
-	JSValueRef ret = midorator_js_callprop(ctx, doc, "createElement", 1, &str);
+	JSValueRef ret = midorator_js_callprop_proto(ctx, doc, "createElement", 1, &str);
 	JSStringRelease(sr);
 	if (!ret || !JSValueIsObject(ctx, ret)) {
 		midorator_error(midorator_js_get_wv(ctx), "JS Error: Creating element: not created");
@@ -732,7 +756,7 @@ static_f JSObjectRef midorator_js_create_element(JSContextRef ctx, const char *t
 			midorator_error(midorator_js_get_wv(ctx), "JS Error: Creating element: can't find parent");
 	}*/
 	JSObjectRef body = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "body"));
-	midorator_js_callprop(ctx, body, "appendChild", 1, &ret);
+	midorator_js_callprop_proto(ctx, body, "appendChild", 1, &ret);
 
 	midorator_js_setprop(ctx, JSValueToObject(ctx, ret, NULL), "near", near);
 	return JSValueToObject(ctx, ret, NULL);
@@ -742,7 +766,7 @@ static_f void midorator_js_setattr(JSContextRef ctx, JSObjectRef obj, const char
 	JSStringRef sn = JSStringCreateWithUTF8CString(name);
 	JSStringRef sv = JSStringCreateWithUTF8CString(value);
 	JSValueRef args[] = { JSValueMakeString(ctx, sn), JSValueMakeString(ctx, sv) };
-	midorator_js_callprop(ctx, obj, "setAttribute", 2, args);
+	midorator_js_callprop_proto(ctx, obj, "setAttribute", 2, args);
 	JSStringRelease(sn);
 	JSStringRelease(sv);
 }
@@ -750,7 +774,7 @@ static_f void midorator_js_setattr(JSContextRef ctx, JSObjectRef obj, const char
 static_f char* midorator_js_getattr(JSContextRef ctx, JSObjectRef obj, const char *name) {
 	JSStringRef sn = JSStringCreateWithUTF8CString(name);
 	JSValueRef args[] = { JSValueMakeString(ctx, sn) };
-	JSValueRef v = midorator_js_callprop(ctx, obj, "getAttribute", 1, args);
+	JSValueRef v = midorator_js_callprop_proto(ctx, obj, "getAttribute", 1, args);
 	JSStringRelease(sn);
 	if (!v || JSValueIsNull(ctx, v))
 		return NULL;
@@ -788,27 +812,19 @@ static_f void midorator_js_form_click(JSContextRef ctx, JSObjectRef item, bool f
 	free(tagname);
 
 	if (item != form) {
-		midorator_js_callprop(ctx, item, "focus", 0, NULL);
+		midorator_js_callprop_proto(ctx, item, "focus", 0, NULL);
 		midorator_mode(midorator_js_get_wv(ctx), 'i');
 		if (!force_submit) {
-			midorator_js_callprop(ctx, item, "click", 0, NULL);
+			midorator_js_callprop_proto(ctx, item, "click", 0, NULL);
 			return;
 		}
-		/*char *type = midorator_js_getattr(ctx, item, "type");
-		if (g_ascii_strcasecmp(type, "submit") == 0)
-			submit = true;
-		else if (g_ascii_strcasecmp(type, "reset") == 0)
-			midorator_js_callprop(ctx, form, "reset", 0, NULL);
-		free(type);*/
 	}
 
 	if (form) {
-		if (!force_submit && JSValueToObject(ctx, midorator_js_getprop(ctx, form, "onsubmit"), NULL)) {
-			if (midorator_js_handle(ctx, form, "onsubmit", NULL))
-				return;
-		}
+		if (!force_submit && !midorator_js_handle(ctx, form, "onsubmit", NULL))
+			return;
 		// TODO: do something with "name=value" of button
-		midorator_js_callprop(ctx, form, "submit", 0, NULL);
+		midorator_js_callprop_proto(ctx, form, "submit", 0, NULL);
 	} else
 		midorator_error(midorator_js_get_wv(ctx), "To submit a form, select it first");
 }
@@ -846,24 +862,25 @@ static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item) {
 		midorator_js_form_click(ctx, item, false);
 		return;
 	}
-	midorator_js_callprop(ctx, item, "focus", 0, NULL);
-	bool r = midorator_js_handle(ctx, item, "onclick", NULL);
-	if (!r)
-		return;
-	char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "href"));
-	if (!href)
-		return;
-	char *tg = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "target"));
-	if (tg && !tg[0]) {
-		free(tg);
-		midorator_js_open(ctx, href, NULL);
-	} else if (tg) {
-		JSObjectRef frame = midorator_js_find_frame(ctx, tg);
-		midorator_js_open(ctx, href, frame);
-		free(tg);
-	} else
-		midorator_js_open(ctx, href, NULL);
-	free(href);
+	midorator_js_callprop_proto(ctx, item, "focus", 0, NULL);
+	if (midorator_js_is_js_enabled(ctx))
+		midorator_js_handle(ctx, item, "onclick", NULL);
+	else {
+		char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "href"));
+		if (!href)
+			return;
+		char *tg = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "target"));
+		if (tg && !tg[0]) {
+			free(tg);
+			midorator_js_open(ctx, href, NULL);
+		} else if (tg) {
+			JSObjectRef frame = midorator_js_find_frame(ctx, tg);
+			midorator_js_open(ctx, href, frame);
+			free(tg);
+		} else
+			midorator_js_open(ctx, href, NULL);
+		free(href);
+	}
 }
 
 static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const char *text) {
