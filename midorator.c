@@ -1236,6 +1236,38 @@ static_f void midorator_go(GtkWidget* web_view, const char *dir) {
 	midorator_js_go(ctx, dir);
 }
 
+static_f void midorator_jscmd(GtkWidget* web_view, const char *code, char **args, int argnum) {
+	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
+	if (!frame)
+		return;
+	JSGlobalContextRef ctx = webkit_web_frame_get_global_context(frame);
+	if (!ctx)
+		return;
+	midorator_make_js_callback(ctx, GTK_WIDGET(web_view));
+	JSObjectRef ac = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "Array"), NULL);
+	JSObjectRef arr = JSValueToObject(ctx, JSObjectCallAsConstructor(ctx, ac, 0, NULL, NULL), NULL);
+	int i;
+	for (i=0; i<argnum; i++) {
+		JSStringRef s = JSStringCreateWithUTF8CString(args[i]);
+		JSValueRef v = JSValueMakeString(ctx, s);
+		JSStringRelease(s);
+		midorator_js_callprop(ctx, arr, "push", 1, &v);
+	}
+	
+	JSStringRef an[] = { JSStringCreateWithUTF8CString("command"), JSStringCreateWithUTF8CString("args") };
+	JSStringRef body = JSStringCreateWithUTF8CString(code);
+	JSValueRef av[] = { JSObjectMakeFunctionWithCallback(ctx, an[0], midorator_js_private_callback), arr };
+	JSValueRef e = NULL;
+	JSObjectRef script = JSObjectMakeFunction(ctx, NULL, 2, an, body, NULL, 1, &e);
+	JSStringRelease(body);
+	JSStringRelease(an[0]);
+	JSStringRelease(an[1]);
+	if (midorator_js_error(ctx, e, "Parsing user script"))
+		return;
+	JSObjectCallAsFunction(ctx, script, NULL, 2, av, &e);
+	midorator_js_error(ctx, e, "Executing user script");
+}
+
 static_f void midorator_submit_form(GtkWidget* web_view) {
 	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
 	if (!frame)
@@ -2045,11 +2077,20 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			}
 		g_list_free(l);
 
+	} else if (strcmp(cmd[0], "jscmd") == 0) {
+		midorator_cmdlen_assert(3);
+		midorator_options("jscmd", cmd[1], cmd[2]);
+
 	} else {
-		midorator_error(web_view, "Invalid command: %s", cmd[0]);
-		g_strfreev(cmd);
-		g_free(buf);
-		return false;
+		const char *js = midorator_options("jscmd", cmd[0], NULL);
+		if (js) {
+			midorator_jscmd(web_view, js, cmd + 1, cmdlen - 1);
+		} else {
+			midorator_error(web_view, "Invalid command: %s", cmd[0]);
+			g_strfreev(cmd);
+			g_free(buf);
+			return false;
+		}
 	}
 	g_strfreev(cmd);
 	g_free(buf);
