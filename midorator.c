@@ -1961,39 +1961,6 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		midorator_cmdlen_assert(1);
 		midorator_submit_form(web_view);
 
-	} else if (strcmp(cmd[0], "scroll") == 0) {
-		midorator_cmdlen_assert_range(4, 5);
-		if (!cmd[1][0] || !cmd[2][0] || !cmd[3][0]) {
-			free(cmd);
-			free(buf);
-			return false;
-		}
-
-		GtkWidget *s = gtk_widget_get_parent(web_view);
-		GtkAdjustment *a;
-		if (cmd[1][0] == 'h')
-			a = gtk_scrolled_window_get_hadjustment(GTK_SCROLLED_WINDOW(s));
-		else
-			a = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(s));
-
-		double pos = atoi(cmd[3]);
-		if (cmd[4] && cmd[4][0] == 'p')
-			pos *= gtk_adjustment_get_page_increment(a);
-		else
-			pos *= gtk_adjustment_get_step_increment(a);
-
-		if (cmd[2][0] == '+')
-			pos += gtk_adjustment_get_value(a);
-		else if (cmd[2][0] == '-')
-			pos = gtk_adjustment_get_value(a) - pos;
-
-		if (pos < gtk_adjustment_get_lower(a))
-			pos = gtk_adjustment_get_lower(a);
-		if (pos > gtk_adjustment_get_upper(a))
-			pos = gtk_adjustment_get_upper(a);
-		
-		gtk_adjustment_set_value(a, pos);
-
 	} else if (strcmp(cmd[0], "wq") == 0) {
 		midorator_cmdlen_assert(1);
 		GtkWidget *w;
@@ -2123,7 +2090,33 @@ static_f void midorator_del_tab_cb (MidoriView* view, MidoriBrowser* browser) {
 }
 
 static_f void midorator_default_config (GtkWidget* web_view) {
-#	include "default.h"
+	char *cmds[] = {
+#		include "default.h"
+		NULL
+	};
+	int i;
+	for (i=0; cmds[i]; i++) {
+		if (strcmp(cmds[i], "{{{") == 0) {
+			char *s = NULL;
+			for (i++; cmds[i] && strcmp(cmds[i], "}}}"); i++) {
+				char *sn = g_strconcat(s ? s : "", "\n", cmds[i], NULL);
+				if (s)
+					g_free(s);
+				s = sn;
+			}
+			if (!cmds[i]) {
+				midorator_error(web_view, "}}} expected, EOF found");
+				if (s)
+					g_free(s);
+				return;
+			}
+			if (s) {
+				midorator_process_command(web_view, "%s", s);
+				g_free(s);
+			}
+		} else
+			midorator_process_command(web_view, "%s", cmds[i]);
+	}
 }
 
 static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, MidoriExtension* extension) {

@@ -1,60 +1,90 @@
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "cmdmap : entry :");
-	midorator_process_command(web_view, "cmdmap <Tab> pass");
-	midorator_process_command(web_view, "cmdmap ; entry ;");
-	midorator_process_command(web_view, "cmdmap / entry /");
-	midorator_process_command(web_view, "cmdmap ? entry ?");
-	midorator_process_command(web_view, "cmdmap [[ go prev");
-	midorator_process_command(web_view, "cmdmap ]] go next");
-	midorator_process_command(web_view, "cmdmap r reload");
-	midorator_process_command(web_view, "cmdmap R reload!");
-	midorator_process_command(web_view, "cmdmap <space> scroll v + 1 p");
-	midorator_process_command(web_view, "cmdmap <Page_Down> scroll v + 1 p");
-	midorator_process_command(web_view, "cmdmap <Page_Up> scroll v - 1 p");
-	midorator_process_command(web_view, "cmdmap <Up> scroll v - 1");
-	midorator_process_command(web_view, "cmdmap k scroll v - 1");
-	midorator_process_command(web_view, "cmdmap <Down> scroll v + 1");
-	midorator_process_command(web_view, "cmdmap j scroll v + 1");
-	midorator_process_command(web_view, "cmdmap <Home> scroll v = 0");
-	midorator_process_command(web_view, "cmdmap gg scroll v = 0");
-	midorator_process_command(web_view, "cmdnmap gg scroll v = %%i p");
-	midorator_process_command(web_view, "cmdmap <End> scroll v = 32768 p");
-	midorator_process_command(web_view, "cmdmap G scroll v = 32768 p");
-	midorator_process_command(web_view, "cmdnmap G scroll v = %%i p");
-	midorator_process_command(web_view, "cmdmap <BackSpace> go back");
-	midorator_process_command(web_view, "cmdmap H go back");
-	midorator_process_command(web_view, "cmdmap L go forth");
-	midorator_process_command(web_view, "cmdmap p paste");
-	midorator_process_command(web_view, "cmdmap P tabpaste");
-	midorator_process_command(web_view, "cmdmap y yank");
-	midorator_process_command(web_view, "cmdmap n next");
-	midorator_process_command(web_view, "cmdmap N next!");
-	midorator_process_command(web_view, "cmdmap t entry \":tabnew \"");
-	midorator_process_command(web_view, "cmdmap o entry \":open \"");
-	midorator_process_command(web_view, "cmdmap f entry ;f");
-	midorator_process_command(web_view, "cmdmap F entry ;F");
-	midorator_process_command(web_view, "cmdmap i insert");
-	midorator_process_command(web_view, "cmdmap u undo");
-	midorator_process_command(web_view, "cmdmap d q");
-	midorator_process_command(web_view, "cmdmap gt action TabNext");
-	midorator_process_command(web_view, "cmdnmap gt widget tabs page %%i");
-	midorator_process_command(web_view, "cmdmap gT action TabPrevious");
-	midorator_process_command(web_view, "cmdmap <CR> submit");
-	midorator_process_command(web_view, "cmdmap <C-c> action Stop");
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "cmdmap bm action Menubar");
-	midorator_process_command(web_view, "cmdmap bn action Navigationbar");
-	midorator_process_command(web_view, "cmdmap bb action Bookmarkbar");
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "set hintstyle \"background-color: #59FF00; border: 2px solid #4A6600; color: black; font-size: 9px; line-height: 9px; font-weight: bold; margin: 0px; padding: 1px; z-index: 1000; border-radius: 6px;\"");
-	midorator_process_command(web_view, "set hint_default \"a.href input select textarea button .onclick\"");
-	midorator_process_command(web_view, "set hint_tabnew a.href");
-	midorator_process_command(web_view, "set hint_yank \"a.href a.name\"");
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "set go_next \"^>$, ^>>$, ^>>>$, ^next$, next *[>»], ^далее, ^след[.у], next, >\"");
-	midorator_process_command(web_view, "set go_prev \"^<$, ^<<$, ^<<<$, ^prev$, ^previous, prev[.]? *[<«], previous *[<«], ^назад, ^пред[.ы], previous, <\"");
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "");
-	midorator_process_command(web_view, "source ~/.midoratorrc");
-	midorator_process_command(web_view, "");
+	"",
+	"cmdmap : entry :",
+	"cmdmap <Tab> pass",
+	"cmdmap ; entry ;",
+	"cmdmap / entry /",
+	"cmdmap ? entry ?",
+	"cmdmap [[ go prev",
+	"cmdmap ]] go next",
+	"cmdmap r reload",
+	"cmdmap R reload!",
+	"cmdmap <space> scroll +1p",
+	"cmdmap <Page_Down> scroll +1p",
+	"cmdmap <Page_Up> scroll -1p",
+	"cmdmap <Up> scroll -1",
+	"cmdmap k scroll -1",
+	"cmdmap <Down> scroll +1",
+	"cmdmap j scroll +1",
+	"cmdmap <Home> scroll 0",
+	"cmdmap gg scroll 0",
+	"cmdnmap gg scroll %%ip",
+	"cmdmap <End> scroll 32768p",
+	"cmdmap G scroll 32768p",
+	"cmdnmap G scroll %%ip",
+	"cmdmap <BackSpace> go back",
+	"cmdmap H go back",
+	"cmdmap L go forth",
+	"cmdmap p paste",
+	"cmdmap P tabpaste",
+	"cmdmap y yank",
+	"cmdmap n next",
+	"cmdmap N next!",
+	"cmdmap t entry \":tabnew \"",
+	"cmdmap o entry \":open \"",
+	"cmdmap f entry ;f",
+	"cmdmap F entry ;F",
+	"cmdmap i insert",
+	"cmdmap u undo",
+	"cmdmap d q",
+	"cmdmap gt action TabNext",
+	"cmdnmap gt widget tabs page %%i",
+	"cmdmap gT action TabPrevious",
+	"cmdmap <CR> submit",
+	"cmdmap <C-c> action Stop",
+	"",
+	"cmdmap bm action Menubar",
+	"cmdmap bn action Navigationbar",
+	"cmdmap bb action Bookmarkbar",
+	"",
+	"{{{",
+	"	jscmd scroll '",
+	"		var vert = (args[0] != \"h\");",
+	"		var num = vert ? args[0] : args[1];",
+	"		if (!num)",
+	"			throw(\"scroll: too few arguments\");",
+	"		if (!window.scrollthing) {",
+	"			window.scrollthing = document.body;",
+	"		}",
+	"		var pagesize = 20;",
+	"		if (num.substr(-1) == \"p\") {",
+	"			if (window.scrollthing == document.body) {",
+	"				pagesize = (vert ? window.innerHeight : window.innerWidth) * 0.9;",
+	"			}",
+	"			num = num.substr(0, num.length - 1);",
+	"		}",
+	"		var pos = vert ? window.scrollthing.scrollTop : window.scrollthing.scrollLeft;",
+	"		if (num.substr(0, 1) == \"+\")",
+	"			pos += Number(num.substr(1)) * pagesize;",
+	"		else if (num.substr(0, 1) == \"-\")",
+	"			pos -= Number(num.substr(1)) * pagesize;",
+	"		else",
+	"			pos = Number(num) * pagesize;",
+	"		if (vert)",
+	"			window.scrollthing.scrollTop = pos;",
+	"		else",
+	"			window.scrollthing.scrollLeft = pos;",
+	"	'",
+	"}}}",
+	"",
+	"",
+	"set hintstyle \"background-color: #59FF00; border: 2px solid #4A6600; color: black; font-size: 9px; line-height: 9px; font-weight: bold; margin: 0px; padding: 1px; z-index: 1000; border-radius: 6px;\"",
+	"set hint_default \"a.href input select textarea button .onclick\"",
+	"set hint_tabnew a.href",
+	"set hint_yank \"a.href a.name\"",
+	"",
+	"set go_next \"^>$, ^>>$, ^>>>$, ^next$, next *[>»], ^далее, ^след[.у], next, >\"",
+	"set go_prev \"^<$, ^<<$, ^<<<$, ^prev$, ^previous, prev[.]? *[<«], previous *[<«], ^назад, ^пред[.ы], previous, <\"",
+	"",
+	"",
+	"source ~/.midoratorrc",
+	"",
