@@ -1897,8 +1897,31 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		}
 		if (f) {
 			char buf[512];
-			while (fscanf(f, " %511[^\n\r]", buf) == 1)
-				midorator_process_command(web_view, "%s", buf);
+			while (fscanf(f, " %511[^\n\r]", buf) == 1) {
+				if (strcmp(buf, "{{{") == 0) {
+					char *s = NULL;
+					for (;;) {
+						if (fscanf(f, " %511[^\n\r]", buf) != 1) {
+							midorator_error(web_view, "}}} expected, EOF found");
+							if (s)
+								g_free(s);
+							fclose(f);
+							return false;
+						}
+						if (strcmp(buf, "}}}") == 0)
+							break;
+						char *sn = g_strconcat(s ? s : "", "\n", buf, NULL);
+						if (s)
+							g_free(s);
+						s = sn;
+					}
+					if (s) {
+						midorator_process_command(web_view, "%s", s);
+						g_free(s);
+					}
+				} else
+					midorator_process_command(web_view, "%s", buf);
+			}
 			fclose(f);
 		}
 
