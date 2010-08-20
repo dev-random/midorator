@@ -736,6 +736,8 @@ static_f JSObjectRef midorator_js_find_frame(JSContextRef ctx, const char *name)
 
 static_f void midorator_js_delhints(JSContextRef ctx, JSObjectRef win) {
 	JSObjectRef doc = JSValueToObject(ctx, midorator_js_getprop(ctx, win, "document"), NULL);
+	if (!doc)		// AdBlock again
+		return;
 	JSStringRef s = JSStringCreateWithUTF8CString("midorator_hint");
 	JSValueRef vs = JSValueMakeString(ctx, s);
 	JSStringRelease(s);
