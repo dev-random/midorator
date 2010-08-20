@@ -28,6 +28,7 @@
 static_f void midorator_del_browser_cb (MidoriExtension* extension, MidoriBrowser* browser);
 static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, MidoriExtension* extension);
 static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text);
+static_f char* midorator_process_request(GtkWidget *web_view, char **args, int arglen);
 static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...);
 static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view);
 static_f GtkStatusbar* midorator_find_sb(GtkWidget *w);
@@ -1027,22 +1028,45 @@ static_f JSValueRef midorator_js_private_callback(JSContextRef ctx, JSObjectRef 
 	if (argumentCount < 1)
 		return JSValueMakeNull(ctx);
 	char *cmd = NULL;
+	char *request[argumentCount - 1];
+	bool get = false;
 	int i;
 	for (i=0; i < argumentCount; i++) {
 		char *cmdel = midorator_js_value_to_string(ctx, arguments[i]);
-		char *cmdsh = g_shell_quote(cmdel);
-		free(cmdel);
-		if (cmd) {
-			char *cmd2 = g_strconcat(cmd, " ", cmdsh, NULL);
-			g_free(cmdsh);
-			g_free(cmd);
-			cmd = cmd2;
-		} else
-			cmd = cmdsh;
+		if (i == 0 && strcmp(cmdel, "get") == 0) {
+			free(cmdel);
+			get = true;
+		} else if (get) {
+			request[i-1] = cmdel;
+		} else {
+			char *cmdsh = g_shell_quote(cmdel);
+			free(cmdel);
+			if (cmd) {
+				char *cmd2 = g_strconcat(cmd, " ", cmdsh, NULL);
+				g_free(cmdsh);
+				g_free(cmd);
+				cmd = cmd2;
+			} else
+				cmd = cmdsh;
+		}
 	}
-	bool ret = midorator_process_command(midorator_js_get_wv(ctx), "%s", cmd);
-	g_free(cmd);
-	return JSValueMakeBoolean(ctx, ret);
+	if (get) {
+		char *ret = midorator_process_request(midorator_js_get_wv(ctx), request, argumentCount - 1);
+		for (i=0; i < argumentCount - 1; i++)
+			free(request[i]);
+		if (ret) {
+			JSStringRef s = JSStringCreateWithUTF8CString(ret);
+			g_free(ret);
+			JSValueRef ret = JSValueMakeString(ctx, s);
+			JSStringRelease(s);
+			return ret;
+		} else
+			return JSValueMakeNull(ctx);
+	} else {
+		bool ret = midorator_process_command(midorator_js_get_wv(ctx), "%s", cmd);
+		g_free(cmd);
+		return JSValueMakeBoolean(ctx, ret);
+	}
 }
 
 static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const char *follow, const char *cmd) {
