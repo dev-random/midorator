@@ -158,11 +158,13 @@ GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	}
 }
 
-void midorator_setprop(GtkWidget *web_view, const char *widget, const char *name, const char *value) {
+#define midorator_setprop(web_view, widget, name, value) g_free(midorator_set_get_prop((web_view), (widget), (name), (value)))
+#define midorator_getprop(web_view, widget, name) (midorator_set_get_prop((web_view), (widget), (name), NULL))
+static_f char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, const char *name, const char *value) {
 	GtkWidget *w = midorator_findwidget(web_view, widget);
 	if (!w) {
 		midorator_error(web_view, "Widget not found: %s", widget);
-		return;
+		return NULL;
 	}
 	GtkWidget *p = NULL;
 	GParamSpec *sp = g_object_class_find_property(G_OBJECT_GET_CLASS(w), name);
@@ -172,56 +174,88 @@ void midorator_setprop(GtkWidget *web_view, const char *widget, const char *name
 	}
 	if (!sp) {
 		midorator_error(web_view, "Property for widget '%s' not found: %s", widget, name);
-		return;
+		return NULL;
 	}
-	int num = atoi(value);
-	double d = strtod(value, NULL);
+	int num;
+	double d;
+	if (value) {
+		num = atoi(value);
+		d = strtod(value, NULL);
+	}
+	char *ret = NULL;
 	GValue v = {};
 	g_value_init(&v, sp->value_type);
+	if (p)
+		gtk_container_child_get_property(GTK_CONTAINER(p), G_OBJECT(w), name, &v);
+	else
+		g_object_get_property(G_OBJECT(w), name, &v);
 	switch (sp->value_type) {
 		case G_TYPE_STRING:
-			g_value_set_string(&v, value);
+			ret = g_value_dup_string(&v);
+			if (value)
+				g_value_set_string(&v, value);
 			break;
 		case G_TYPE_ENUM:
-			g_value_set_enum(&v, num);
+			ret = g_strdup_printf("%i", (int)g_value_get_enum(&v));
+			if (value)
+				g_value_set_enum(&v, num);
 			break;
 		case G_TYPE_INT:
-			g_value_set_int(&v, num);
+			ret = g_strdup_printf("%i", g_value_get_int(&v));
+			if (value)
+				g_value_set_int(&v, num);
 			break;
 		case G_TYPE_UINT:
-			g_value_set_uint(&v, num);
+			ret = g_strdup_printf("%u", g_value_get_uint(&v));
+			if (value)
+				g_value_set_uint(&v, num);
 			break;
 		case G_TYPE_LONG:
-			g_value_set_long(&v, num);
+			ret = g_strdup_printf("%li", g_value_get_long(&v));
+			if (value)
+				g_value_set_long(&v, num);
 			break;
 		case G_TYPE_ULONG:
-			g_value_set_ulong(&v, num);
+			ret = g_strdup_printf("%lu", g_value_get_ulong(&v));
+			if (value)
+				g_value_set_ulong(&v, num);
 			break;
 		case G_TYPE_INT64:
-			g_value_set_int64(&v, num);
+			ret = g_strdup_printf("%lli", g_value_get_int64(&v));
+			if (value)
+				g_value_set_int64(&v, num);
 			break;
 		case G_TYPE_UINT64:
-			g_value_set_uint64(&v, num);
+			ret = g_strdup_printf("%llu", g_value_get_uint64(&v));
+			if (value)
+				g_value_set_uint64(&v, num);
 			break;
 		case G_TYPE_BOOLEAN:
-			g_value_set_boolean(&v, (g_ascii_strcasecmp(value, "true") == 0) ? true : (g_ascii_strcasecmp(value, "false") == 0) ? false : num);
+			ret = g_strdup(g_value_get_boolean(&v) ? "true" : "false");
+			if (value)
+				g_value_set_boolean(&v, (g_ascii_strcasecmp(value, "true") == 0) ? true : (g_ascii_strcasecmp(value, "false") == 0) ? false : num);
 			break;
 		case G_TYPE_FLOAT:
-			g_value_set_float(&v, d);
+			ret = g_strdup_printf("%f", g_value_get_float(&v));
+			if (value)
+				g_value_set_float(&v, d);
 			break;
 		case G_TYPE_DOUBLE:
-			g_value_set_double(&v, d);
+			ret = g_strdup_printf("%lf", g_value_get_double(&v));
+			if (value)
+				g_value_set_double(&v, d);
 			break;
 		default:
 			midorator_error(web_view, "Unknown property type: '%s'", g_type_name(sp->value_type));
 			g_value_unset(&v);
-			return;
+			return NULL;
 	}
 	if (p)
 		gtk_container_child_set_property(GTK_CONTAINER(p), G_OBJECT(w), name, &v);
 	else
 		g_object_set_property(G_OBJECT(w), name, &v);
 	g_value_unset(&v);
+	return ret;
 }
 
 void midorator_setclipboard(GdkAtom atom, const char *str) {
@@ -1744,6 +1778,15 @@ static_f char* midorator_shellmerge(char **argv, int argc) {
 	return ret;
 }
 
+static_f char* midorator_process_request(GtkWidget *web_view, char **args, int arglen) {
+	if (arglen <= 0)
+		return NULL;
+	if (strcmp(args[0], "widget") == 0) {
+		return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
+	}
+	return NULL;
+}
+
 static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
 	va_list l;
 	va_start(l, fmt);
@@ -2047,6 +2090,14 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	} else if (strcmp(cmd[0], "jscmd") == 0) {
 		midorator_cmdlen_assert(3);
 		midorator_options("jscmd", cmd[1], cmd[2]);
+
+	} else if (strcmp(cmd[0], "get") == 0) {
+		midorator_cmdlen_assert_range(2, 65536);
+		char *reply = midorator_process_request(web_view, cmd + 1, cmdlen - 1);
+		if (reply) {
+			midorator_message(web_view, reply, NULL, NULL);
+			g_free(reply);
+		}
 
 	} else {
 		const char *js = midorator_options("jscmd", cmd[0], NULL);
