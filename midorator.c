@@ -2113,6 +2113,18 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			}
 		g_list_free(l);
 
+	} else if (strcmp(cmd[0], "killtab") == 0) {
+		midorator_cmdlen_assert(2);
+		char *end = NULL;
+		int n = strtol(cmd[1], &end, 0);
+		if (!end || end[0])
+			midorator_error(web_view, "killtab: number expected");
+		else {
+			GtkNotebook *nb = GTK_NOTEBOOK(midorator_findwidget(web_view, "tabs"));
+			GtkWidget *page = gtk_notebook_get_nth_page(nb, n);
+			gtk_widget_destroy(page);
+		}
+
 	} else if (strcmp(cmd[0], "jscmd") == 0) {
 		midorator_cmdlen_assert(3);
 		midorator_options("jscmd", cmd[1], cmd[2]);
