@@ -1813,6 +1813,11 @@ static_f char* midorator_process_request(GtkWidget *web_view, char **args, int a
 	return NULL;
 }
 
+static_f void midorator_do_restart(void) {
+	const char *p = g_get_prgname();
+	execlp(p, p, NULL);
+}
+
 static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
 	va_list l;
 	va_start(l, fmt);
@@ -2124,6 +2129,12 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			GtkWidget *page = gtk_notebook_get_nth_page(nb, n);
 			gtk_widget_destroy(page);
 		}
+
+	} else if (strcmp(cmd[0], "restart") == 0) {
+		midorator_cmdlen_assert(1);
+		atexit(midorator_do_restart);
+		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
+		midori_browser_quit(browser);
 
 	} else if (strcmp(cmd[0], "jscmd") == 0) {
 		midorator_cmdlen_assert(3);
