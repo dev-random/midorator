@@ -90,6 +90,14 @@ GtkWidget *midori_view_from_web_view(GtkWidget *web_view) {
 	return ret;
 }
 
+static_f bool midorator_string_to_bool(const char *string) {
+	return
+		g_ascii_strcasecmp(string, "true") ||
+		g_ascii_strcasecmp(string, "on") ||
+		g_ascii_strcasecmp(string, "+") ||
+		g_ascii_strcasecmp(string, "1");
+}
+
 void midorator_error(GtkWidget *web_view, char *fmt, ...) {
 	va_list l;
 	va_start(l, fmt);
@@ -1507,6 +1515,18 @@ static_f void midorator_entry_history(GtkEntry* e, bool up, bool store) {
 	}
 }
 
+static_f gboolean midorator_entry_paste_clipboard_cb (GtkEntry* e, GtkWidget* web_view) {
+	if (!midorator_string_to_bool(midorator_options("option", "paste_primary", NULL)))
+		return false;
+	char *text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_PRIMARY));
+	gtk_editable_delete_selection(GTK_EDITABLE(e));
+	int pos = gtk_editable_get_position(GTK_EDITABLE(e));
+	gtk_editable_insert_text(GTK_EDITABLE(e), text, -1, &pos);
+	gtk_editable_set_position(GTK_EDITABLE(e), pos);
+	g_free(text);
+	return true;
+}
+
 static_f gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* event, GtkWidget* web_view) {
 	if (event->keyval == GDK_Escape) {
 		midorator_entry(web_view, NULL);
@@ -1599,6 +1619,8 @@ static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
 			G_CALLBACK (midorator_entry_key_press_event_cb), web_view);
 		g_signal_connect (e, "focus-out-event",
 			G_CALLBACK (midorator_entry_restore_focus), web_view);
+		g_signal_connect (e, "paste-clipboard",
+			G_CALLBACK (midorator_entry_paste_clipboard_cb), web_view);
 		midorator_entry_edited_cb(GTK_ENTRY(e), web_view);
 		return e;
 	} else {
@@ -2219,6 +2241,17 @@ static_f void midorator_default_config (GtkWidget* web_view) {
 	}
 }
 
+static_f void midorator_paste_clipboard_cb(WebKitWebView* web_view) {
+	if (!midorator_string_to_bool(midorator_options("option", "paste_primary", NULL)))
+		return;
+	g_signal_stop_emission_by_name(web_view, "paste-clipboard");
+	char *text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_PRIMARY));
+	const char *js = midorator_options("jscmd", "js_paste", NULL);
+	if (js)
+		midorator_jscmd(web_view, js, &text, 1);
+	g_free(text);
+}
+
 static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, MidoriExtension* extension) {
 	GtkWidget* web_view = midori_view_get_web_view (view);
 
@@ -2228,6 +2261,8 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 		G_CALLBACK (midorator_context_ready_cb), extension);
 	g_signal_connect (web_view, "navigation-policy-decision-requested",
 		G_CALLBACK (midorator_navrequest_cb), extension);
+	g_signal_connect (web_view, "paste-clipboard",
+		G_CALLBACK (midorator_paste_clipboard_cb), browser);
 	
 	static processed = false;
 	if (!processed) {
