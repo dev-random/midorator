@@ -1464,7 +1464,7 @@ static_f void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
 		return;
 	else if (t[0] == 0)
 		midorator_entry(web_view, NULL);
-	else if (t[0] == ';')
+	else if (t[0] == ';' && t[1])
 		midorator_process_command(web_view, "hint %s", t + 1);
 	else if (t[0] == '/')
 		midorator_search(web_view, t + 1, true, false);
@@ -1521,7 +1521,7 @@ static_f gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* 
 		midorator_entry(web_view, NULL);
 		if (t[0] == ':')
 			midorator_process_command(web_view, "%s", t + 1);
-		else if (t[0] == ';')
+		else if (t[0] == ';' && t[1])
 			midorator_process_command(web_view, "hint %s", t + 1);
 		else if (t[0] == '/')
 			midorator_search(web_view, t + 1, true, true);
