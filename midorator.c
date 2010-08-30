@@ -928,7 +928,7 @@ static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item) {
 	}
 }
 
-static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const char *text) {
+static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const char *text, bool scroll) {
 	JSObjectRef hint = midorator_js_create_element(ctx, "div", el);
 	if (!hint)
 		return JSValueMakeNull(ctx);
@@ -945,7 +945,8 @@ static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const
 	g_free(pos);
 	midorator_js_setattr(ctx, hint, "style", fullstyle);
 	g_free(fullstyle);
-	midorator_js_callprop_proto(ctx, hint, "scrollIntoViewIfNeeded", 0, NULL);
+	if (scroll)
+		midorator_js_callprop_proto(ctx, hint, "scrollIntoViewIfNeeded", 0, NULL);
 	return hint;
 }
 
@@ -1017,7 +1018,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			return JSValueMakeNull(ctx);
 		JSObjectRef el = JSValueToObject(ctx, arguments[1], NULL);
 		char *text = midorator_js_value_to_string(ctx, arguments[2]);
-		JSValueRef hint = midorator_js_genhint(ctx, el, text);
+		JSValueRef hint = midorator_js_genhint(ctx, el, text, false);
 		free(text);
 		return hint;
 	} else if (JSStringIsEqualToUTF8CString(param, "getelems")) {
@@ -1140,7 +1141,7 @@ static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const ch
 			text[i] = charset[dt.rem];
 			n = dt.quot;
 		}
-		midorator_js_genhint(ctx, midorator_js_v2o(ctx, iter.val), text + strlen(follow));
+		midorator_js_genhint(ctx, midorator_js_v2o(ctx, iter.val), text + strlen(follow), follow[0] ? true : false);
 	}
 }
 
