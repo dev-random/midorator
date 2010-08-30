@@ -945,6 +945,7 @@ static_f JSValueRef midorator_js_genhint(JSContextRef ctx, JSObjectRef el, const
 	g_free(pos);
 	midorator_js_setattr(ctx, hint, "style", fullstyle);
 	g_free(fullstyle);
+	midorator_js_callprop_proto(ctx, hint, "scrollIntoViewIfNeeded", 0, NULL);
 	return hint;
 }
 
@@ -1093,9 +1094,14 @@ static_f void midorator_js_hints(JSContextRef ctx, const char *charset, const ch
 	if (cslen < 2)
 		return;
 
-	JSObjectRef elems = midorator_js_v2o(ctx, midorator_js_find_elements(ctx, cmd));
+	JSObjectRef elems = NULL;
+	if (follow && follow[0])
+		elems = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "midorator_hinted_elements"), NULL);
+	if (!elems)
+		elems = midorator_js_v2o(ctx, midorator_js_find_elements(ctx, cmd));
 	if (!elems)
 		return;
+	midorator_js_setprop(ctx, NULL, "midorator_hinted_elements", elems);
 
 	midorator_js_array_iter iter = midorator_js_array_first(ctx, elems);
 	int count = iter.length;
