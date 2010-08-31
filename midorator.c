@@ -1804,20 +1804,17 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			return true;
 		} else if (strcmp(meaning, "wait") == 0) {
 			return true;
-		} else if (strcmp(meaning, "pass") == 0) {
-			return false;
 		} else {
 			int pr = numprefix;
 			numprefix = 0;
 			g_free(sequence);
 			sequence = NULL;
 			if (pr && meaningN && meaningN[0])
-				midorator_process_command(web_view, meaningN, pr);
+				return midorator_process_command(web_view, meaningN, pr);
 			else if (pr)
-				midorator_process_command(web_view, "%i%s", pr, meaning);
+				return midorator_process_command(web_view, "%i%s", pr, meaning);
 			else
-				midorator_process_command(web_view, "%s", meaning);
-			return true;
+				return midorator_process_command(web_view, "%s", meaning);
 		}
 	}
 }
@@ -2178,6 +2175,12 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			midorator_message(web_view, reply, NULL, NULL);
 			g_free(reply);
 		}
+
+	} else if (strcmp(cmd[0], "pass") == 0) {
+		midorator_cmdlen_assert(1);
+		g_strfreev(cmd);
+		g_free(buf);
+		return false;
 
 	} else {
 		const char *js = midorator_options("jscmd", cmd[0], NULL);
