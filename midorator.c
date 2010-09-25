@@ -1527,6 +1527,7 @@ static_f void midorator_entry_history(GtkEntry* e, bool up, bool store) {
 static_f gboolean midorator_entry_paste_clipboard_cb (GtkEntry* e, GtkWidget* web_view) {
 	if (!midorator_string_to_bool(midorator_options("option", "paste_primary", NULL)))
 		return false;
+	g_signal_stop_emission_by_name(e, "paste-clipboard");
 	char *text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_PRIMARY));
 	gtk_editable_delete_selection(GTK_EDITABLE(e));
 	int pos = gtk_editable_get_position(GTK_EDITABLE(e));
