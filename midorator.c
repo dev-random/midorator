@@ -231,12 +231,12 @@ static_f char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, c
 				g_value_set_ulong(&v, num);
 			break;
 		case G_TYPE_INT64:
-			ret = g_strdup_printf("%lli", g_value_get_int64(&v));
+			ret = g_strdup_printf("%lli", (long long)g_value_get_int64(&v));
 			if (value)
 				g_value_set_int64(&v, num);
 			break;
 		case G_TYPE_UINT64:
-			ret = g_strdup_printf("%llu", g_value_get_uint64(&v));
+			ret = g_strdup_printf("%llu", (long long unsigned)g_value_get_uint64(&v));
 			if (value)
 				g_value_set_uint64(&v, num);
 			break;
