@@ -2,7 +2,7 @@
 # /*
 	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
 	make CFLAGS='-g -DDEBUG -O0 -rdynamic' || exit 1
-	midori
+	cgdb midori
 	exit $?
 # */
 #endif
@@ -336,6 +336,10 @@ static_f bool midorator_js_error(JSContextRef ctx, JSValueRef e, const char *pre
 
 static_f JSObjectRef midorator_js_v2o(JSContextRef ctx, JSValueRef val) {
 	JSValueRef e = NULL;
+	if (val == NULL) {
+		midorator_js_error(ctx, JSValueMakeNumber(ctx, 0), "JS Error: Testing if value is object");
+		return NULL;
+	}
 	JSObjectRef ret = JSValueToObject(ctx, val, &e);
 	if (midorator_js_error(ctx, e, "JS Error: Testing if value is object"))
 		return NULL;
@@ -548,7 +552,18 @@ static_f void midorator_js_getrelpos(JSContextRef ctx, JSObjectRef el, double *l
 
 static_f struct _rect { int l, t, w, h; } midorator_js_getpos(JSContextRef ctx, JSObjectRef el) {
 	struct _rect ret = { -1, -1, -1, -1 };
+	/*	// OLD
 	JSObjectRef rect_o = midorator_js_v2o(ctx, midorator_js_callprop_proto(ctx, el, "getBoundingClientRect", 0, NULL));
+	if (!rect_o)
+		return ret;*/
+	JSObjectRef rect_o = midorator_js_v2o(ctx, midorator_js_callprop_proto(ctx, el, "getClientRects", 0, NULL));
+	if (!rect_o)
+		return ret;
+	JSValueRef v = midorator_js_array_first(ctx, rect_o).val;
+	if (v)
+		rect_o = midorator_js_v2o(ctx, v);
+	else
+		rect_o = midorator_js_v2o(ctx, midorator_js_callprop_proto(ctx, el, "getBoundingClientRect", 0, NULL));
 	if (!rect_o)
 		return ret;
 	ret.l = JSValueToNumber(ctx, midorator_js_getprop(ctx, rect_o, "left"), NULL);
