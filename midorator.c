@@ -1,12 +1,13 @@
 #if 0
 # /*
 	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
-	make CFLAGS='-g -DDEBUG -O0 -rdynamic' || exit 1
+	make CFLAGS='-ggdb3 -DDEBUG -O0 -rdynamic' || exit 1
 	cgdb midori
 	exit $?
 # */
 #endif
 
+#include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
 #include <midori/midori.h>
 #include <JavaScriptCore/JavaScript.h>
@@ -48,30 +49,25 @@ static_f char* midorator_html_decode(char *str);
 // recursively search for widget
 #define midorator_findwidget_macro(parent, iter, test) \
 {	\
+logextra("%s; %s", #parent, #test); \
 	GList *__l; \
 	GList *__i; \
-	bool __added; \
 	__l = gtk_container_get_children(GTK_CONTAINER((parent))); \
 	iter = NULL; \
-	do { \
-		__added = false; \
-		for (__i = __l; __i; __i = __i ? __i->next : __l) { \
-			iter = GTK_WIDGET(__i->data); \
-			if (test) { \
-				__added = false; \
-				break; \
-			} \
-			if (GTK_IS_CONTAINER(__i->data)) { \
-				GtkContainer *c = GTK_CONTAINER(__i->data); \
-				GList *prev = __i->prev; \
-				__l = g_list_delete_link(__l, __i); \
-				__i = prev; \
-				GList *l2 = gtk_container_get_children(c); \
-				__l = g_list_concat(__l, l2); \
-				__added = true; \
-			} \
+	for (__i = __l; __i; __i = __i->next) { \
+		iter = GTK_WIDGET(__i->data); \
+logextra("%p: %s", iter, gtk_widget_get_name(iter)); \
+		if (test) \
+			break; \
+		if (GTK_IS_CONTAINER(__i->data)) { \
+			GtkContainer *c = GTK_CONTAINER(__i->data); \
+			GList *l2 = gtk_container_get_children(c); \
+			__l = g_list_concat(__l, l2); \
 		} \
-	} while (__added); \
+	} \
+	g_list_free(__l); \
+	if (!__i) \
+		iter = NULL; \
 }
 
 #define midorator_findwidget_up_macro(child, iter, test) \
@@ -131,6 +127,12 @@ const char* midorator_options(const char *group, const char *name, const char *v
 	return (const char *)g_hash_table_lookup(settings, name);
 }
 
+MidoriLocationAction *midorator_locationaction(MidoriBrowser *browser) {
+	GtkActionGroup *actions = midori_browser_get_action_group(browser);
+	GtkAction *action = gtk_action_group_get_action(actions, "Location");
+	return MIDORI_LOCATION_ACTION (action);
+}
+
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	GtkWidget *w;
 	if (strcmp(name, "view") == 0)
@@ -162,9 +164,10 @@ GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	} else {
 		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
 		midorator_findwidget_macro(w, w, strcmp(gtk_widget_get_name(w), name) == 0);
-		if (!w)
+		if (!w) {
 			midorator_findwidget_macro(gtk_widget_get_toplevel(web_view), w, strcmp(gtk_widget_get_name(w), name) == 0);
-		return NULL;
+		}
+		return w;
 	}
 }
 
@@ -1390,7 +1393,7 @@ static_f void midorator_execute_user_script(GtkWidget *web_view, const char *cod
 }
 
 static_f GtkStatusbar* midorator_find_sb(GtkWidget *w) {
-	for (/*w=w*/; w; w = gtk_widget_get_parent(w))
+	/*for (; w; w = gtk_widget_get_parent(w))
 		if (GTK_IS_VBOX(w)) {
 			GList *l = gtk_container_get_children(GTK_CONTAINER(w));
 			GList *li;
@@ -1403,8 +1406,9 @@ static_f GtkStatusbar* midorator_find_sb(GtkWidget *w) {
 					}
 				g_list_free(l);
 			}
-		}
-	return NULL;
+		}*/
+	midorator_findwidget_macro(gtk_widget_get_toplevel(w), w, GTK_IS_STATUSBAR(w));
+	return GTK_STATUSBAR(w);
 }
 
 static_f void midorator_message(GtkWidget* web_view, const char *message, const char *bg, const char *fg) {
@@ -1544,6 +1548,8 @@ static_f gboolean midorator_entry_paste_clipboard_cb (GtkEntry* e, GtkWidget* we
 		return false;
 	g_signal_stop_emission_by_name(e, "paste-clipboard");
 	char *text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_PRIMARY));
+	if (!text)
+		return true;
 	gtk_editable_delete_selection(GTK_EDITABLE(e));
 	int pos = gtk_editable_get_position(GTK_EDITABLE(e));
 	gtk_editable_insert_text(GTK_EDITABLE(e), text, -1, &pos);
@@ -1653,6 +1659,25 @@ static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
 		gtk_widget_grab_focus(web_view);
 	}
 	return NULL;
+}
+
+void midorator_uri_cb (GtkWidget *widget, MidoriBrowser *browser) {
+	MidoriLocationAction* location_action = midorator_locationaction(browser);
+	const char *uri = midori_location_action_get_uri (location_action);
+	if (!uri || !uri[0])
+		uri = "about:blank";
+	GtkStatusbar *sb = midorator_find_sb(widget);
+	//guint id = gtk_statusbar_get_context_id(sb, "midorator");
+	guint id = 42;
+	gtk_statusbar_pop(sb, id);
+	gtk_statusbar_push(sb, id, uri);
+}
+
+void midorator_uri_push_cb (GtkStatusbar *statusbar, guint context_id, gchar *text, MidoriBrowser *browser) {
+	//g_signal_stop_emission_by_name(statusbar, "text-pushed");
+	if (context_id == 1 && (!text || !text[0])) {
+		midorator_uri_cb (GTK_WIDGET(statusbar), browser);
+	}
 }
 
 static_f void midorator_show_mode(GtkWidget* web_view, const char *str) {
@@ -2292,6 +2317,23 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 	g_signal_connect (web_view, "paste-clipboard",
 		G_CALLBACK (midorator_paste_clipboard_cb), browser);
 	
+	GtkWidget *w = midorator_findwidget(GTK_WIDGET(browser), "MidoriLocationEntry");
+	GtkEditable *entry;
+	if (GTK_IS_BIN(w))
+		entry = GTK_EDITABLE(gtk_bin_get_child(GTK_BIN(w)));
+	else
+		entry = GTK_EDITABLE(w);
+	if (GTK_IS_EDITABLE(entry)) {
+		g_signal_connect (entry, "changed",
+			G_CALLBACK (midorator_uri_cb), browser);
+	}
+
+	GtkWidget *bar = midorator_findwidget(GTK_WIDGET(browser), "statusbar");
+	if (GTK_IS_STATUSBAR(bar)) {
+		g_signal_connect_after (bar, "text-pushed",
+			G_CALLBACK (midorator_uri_push_cb), browser);
+	}
+
 	static processed = false;
 	if (!processed) {
 		processed = true;
@@ -2324,6 +2366,7 @@ static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, 
 		G_CALLBACK (midorator_add_tab_cb), extension);
 	g_signal_connect (extension, "deactivate",
 		G_CALLBACK (midorator_del_browser_cb), browser);
+
 }
 
 static_f void midorator_activate_cb (MidoriExtension* extension, MidoriApp* app) {
