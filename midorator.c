@@ -1823,15 +1823,22 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 		return true;
 		// Do nothing
 	} else {
+		GdkKeymap *km = gdk_keymap_get_default();
+		GdkKeymapKey kk = {event->hardware_keycode};
+		gdk_keymap_translate_keyboard_state(km, event->hardware_keycode, event->state, event->group, NULL, NULL, &kk.level, NULL);
+		guint kv = gdk_keymap_lookup_key(km, &kk);
+		if (!kv)
+			kv = event->keyval;
+		
 		if (!sequence)
-			sequence = g_strdup_printf("%03x;", event->keyval);
+			sequence = g_strdup_printf("%03x;", kv);
 		else {
 			char *os = sequence;
-			sequence = g_strdup_printf("%s%03x;", os, event->keyval);
+			sequence = g_strdup_printf("%s%03x;", os, kv);
 			g_free(os);
 		}
 		int mask = GDK_CONTROL_MASK | GDK_MOD1_MASK | GDK_MOD2_MASK | GDK_MOD3_MASK | GDK_MOD4_MASK | GDK_MOD5_MASK;
-		if (event->keyval > 127)
+		if (kv > 127)
 			mask |= GDK_SHIFT_MASK;
 		if (event->state & mask) {
 			char *os = sequence;
