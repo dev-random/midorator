@@ -2033,7 +2033,6 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 					midorator_error(web_view, "Unfinished '<...>' in command '%s'", cmd[0]);
 					g_free(buf);
 					free(cmd);
-					free(buf);
 					return false;
 				}
 				*end = 0;
@@ -2047,7 +2046,6 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 						midorator_error(web_view, "Unknown modifier: <%s->", key);
 						g_free(buf);
 						free(cmd);
-						free(buf);
 						return false;
 					}
 					mod |= strtol(val, NULL, 16);
@@ -2058,7 +2056,6 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 					midorator_error(web_view, "Unknown key: <%s>", key);
 					g_free(buf);
 					free(cmd);
-					free(buf);
 					return false;
 				}
 				char *nbuf = g_strdup_printf(mod ? "%s%03x;%x;" : "%s%03x;", buf, (int)strtol(val, NULL, 16), mod);
