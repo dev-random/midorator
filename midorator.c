@@ -1953,8 +1953,12 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		midorator_mode(web_view, 'i');
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
-		midorator_cmdlen_assert_range(2, 1025);
-		char *uri = midorator_make_uri(cmd + 1);
+		midorator_cmdlen_assert_range(1, 1025);
+		char *uri;
+		if (cmdlen == 1)
+			uri = strdup("about:blank");
+		else
+			uri = midorator_make_uri(cmd + 1);
 		g_signal_emit_by_name(midori_view_from_web_view(web_view), "new-tab", uri, false, NULL);
 		free(uri);
 
