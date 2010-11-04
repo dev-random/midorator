@@ -1712,7 +1712,7 @@ static_f void midorator_show_mode(GtkWidget* web_view, const char *str) {
 	}
 }
 
-static_f char* midorator_make_uri(char **args) {
+static_f char* midorator_make_uri(MidoriBrowser *browser, char **args) {
 	if (!args[0] || !args[0][0])
 		return strdup("about:blank");
 	if (strchr(args[0], ':')) {
@@ -1741,6 +1741,20 @@ static_f char* midorator_make_uri(char **args) {
 	const char *search = midorator_options("search", args[0], NULL);
 	if (search)
 		args++;
+
+	if (!search) {
+		GtkActionGroup *actions = midori_browser_get_action_group(browser);
+		GtkAction *action = gtk_action_group_get_action(actions, "Search");
+		KatzeArray *arr = midori_search_action_get_search_engines(MIDORI_SEARCH_ACTION(action));
+		KatzeItem *item = katze_array_find_token(arr, args[0]);
+		if (item)
+			args++;
+		else
+			item = midori_search_action_get_default_item(MIDORI_SEARCH_ACTION(action));
+		if (item)
+			search = katze_item_get_uri(item);
+	}
+
 	if (!search)
 		search = midorator_options("search", "default", NULL);
 	if (!search)
@@ -1760,9 +1774,11 @@ static_f char* midorator_make_uri(char **args) {
 		}
 	}
 
-	int len = snprintf(NULL, 0, search, arg);
-	char *ret = malloc(len + 1);
-	sprintf(ret, search, arg);
+	char *ret;
+	if (strstr(search, "%s"))
+		ret = g_strdup_printf(search, arg);
+	else
+		ret = g_strconcat(search, arg, NULL);
 	free(arg);
 	return ret;
 }
@@ -1953,18 +1969,20 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		midorator_mode(web_view, 'i');
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
+		MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
 		midorator_cmdlen_assert_range(1, 1025);
 		char *uri;
 		if (cmdlen == 1)
 			uri = strdup("about:blank");
 		else
-			uri = midorator_make_uri(cmd + 1);
+			uri = midorator_make_uri(browser, cmd + 1);
 		g_signal_emit_by_name(midori_view_from_web_view(web_view), "new-tab", uri, false, NULL);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "open") == 0) {
+		MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
 		midorator_cmdlen_assert_range(2, 1025);
-		char *uri = midorator_make_uri(cmd + 1);
+		char *uri = midorator_make_uri(browser, cmd + 1);
 		if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
 			char *js = g_uri_unescape_string(uri + strlen("javascript:"), NULL);
 			char *js2 = g_shell_quote(js);
