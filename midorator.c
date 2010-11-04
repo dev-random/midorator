@@ -1816,7 +1816,7 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 
 	static int numprefix = 0;
 	static char *sequence = NULL;
-	if (event->keyval >= GDK_0 && event->keyval <= GDK_9) {
+	if (event->keyval >= GDK_0 && event->keyval <= GDK_9 && !sequence) {
 		numprefix = numprefix * 10 + event->keyval - GDK_0;
 		return true;
 	} else if (event->is_modifier) {
