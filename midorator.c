@@ -1086,9 +1086,9 @@ static_f JSValueRef midorator_js_private_callback(JSContextRef ctx, JSObjectRef 
 		if (ret) {
 			JSStringRef s = JSStringCreateWithUTF8CString(ret);
 			g_free(ret);
-			JSValueRef ret = JSValueMakeString(ctx, s);
+			JSValueRef retJ = JSValueMakeString(ctx, s);
 			JSStringRelease(s);
-			return ret;
+			return retJ;
 		} else
 			return JSValueMakeNull(ctx);
 	} else {
@@ -1904,6 +1904,8 @@ static_f char* midorator_process_request(GtkWidget *web_view, char **args, int a
 		return NULL;
 	if (strcmp(args[0], "widget") == 0) {
 		return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
+	} else if (strcmp(args[0], "option") == 0) {
+		return g_strdup(midorator_options(arglen > 2 ? args[1] : "option", arglen > 2 ? args[2] : args[1], NULL));
 	}
 	return NULL;
 }
