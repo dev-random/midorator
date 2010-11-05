@@ -1966,8 +1966,11 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		midorator_setprop(web_view, cmd[1], cmd[2], cmd[3]);
 
 	} else if (strcmp(cmd[0], "insert") == 0) {
-		midorator_cmdlen_assert(1);
-		midorator_mode(web_view, 'i');
+		midorator_cmdlen_assert_range(1, 2);
+		if (cmdlen == 1)
+			midorator_mode(web_view, 'i');
+		else
+			midorator_mode(web_view, cmd[1][0]);
 
 	} else if (strcmp(cmd[0], "tabnew") == 0) {
 		MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
@@ -2327,7 +2330,9 @@ static_f void midorator_paste_clipboard_cb(WebKitWebView* web_view) {
 	if (!midorator_string_to_bool(midorator_options("option", "paste_primary", NULL)))
 		return;
 	g_signal_stop_emission_by_name(web_view, "paste-clipboard");
-	char *text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_PRIMARY));
+	GtkClipboard *cb = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
+	char *text = gtk_clipboard_wait_for_text(cb);
+	gtk_clipboard_set_text(cb, text, -1);	// Otherwise WebKit will clear buffer
 	const char *js = midorator_options("jscmd", "js_paste", NULL);
 	if (js)
 		midorator_jscmd(GTK_WIDGET(web_view), js, &text, 1);
