@@ -7,3 +7,6 @@ midorator.so: midorator.c midorator.h default.h
 default.h: default.config
 	sed 's/"/\\"/g;s/.*/\t"&",/' default.config > default.h
 
+debug:
+	$(MAKE) CFLAGS='-ggdb3 -DDEBUG -O0 -rdynamic' midorator.so
+

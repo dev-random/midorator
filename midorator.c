@@ -1,7 +1,7 @@
 #if 0
 # /*
 	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
-	make CFLAGS='-ggdb3 -DDEBUG -O0 -rdynamic' || exit 1
+	make debug || exit 1
 	cgdb midori
 	exit $?
 # */
@@ -15,17 +15,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "midorator.h"
-
-#ifdef DEBUG
-#	include <execinfo.h>
-#	define static_f
-#	define logline (fprintf(stderr, "%s():%i\n", __func__, __LINE__))
-#	define logextra(f, ...) (fprintf(stderr, "%s():%i: " f "\n", __func__, __LINE__, __VA_ARGS__))
-#else
-#	define static_f static
-#	define logline
-#	define logextra(f, ...)
-#endif
 
 
 
@@ -116,6 +105,7 @@ void midorator_error(GtkWidget *web_view, char *fmt, ...) {
 // Sets option (if "value" is non-NULL) and returns its value.
 // If value is supplied, returned value is not original one, but a table's internal copy.
 const char* midorator_options(const char *group, const char *name, const char *value) {
+	logextra("'%s', '%s', '%s'", group, name, value);
 	static GHashTable *table = NULL;
 	if (!table)
 		table = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)g_hash_table_destroy);
@@ -130,12 +120,14 @@ const char* midorator_options(const char *group, const char *name, const char *v
 }
 
 MidoriLocationAction *midorator_locationaction(MidoriBrowser *browser) {
+	logextra("%p", browser);
 	GtkActionGroup *actions = midori_browser_get_action_group(browser);
 	GtkAction *action = gtk_action_group_get_action(actions, "Location");
 	return MIDORI_LOCATION_ACTION (action);
 }
 
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
+	logextra("%p, '%s'", web_view, name);
 	GtkWidget *w;
 	if (strcmp(name, "view") == 0)
 		return web_view;
@@ -176,6 +168,7 @@ GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 #define midorator_setprop(web_view, widget, name, value) g_free(midorator_set_get_prop((web_view), (widget), (name), (value)))
 #define midorator_getprop(web_view, widget, name) (midorator_set_get_prop((web_view), (widget), (name), NULL))
 static_f char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, const char *name, const char *value) {
+	logextra("%p, '%s', '%s', '%s'", web_view, widget, name, value);
 	GtkWidget *w = midorator_findwidget(web_view, widget);
 	if (!w) {
 		midorator_error(web_view, "Widget not found: %s", widget);
@@ -274,6 +267,7 @@ static_f char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, c
 }
 
 void midorator_setclipboard(GdkAtom atom, const char *str) {
+	logextra("%p, '%s'", atom, str);
 	if (atom == GDK_NONE)
 		atom = GDK_SELECTION_PRIMARY;
 	GtkClipboard *c = gtk_clipboard_get(atom);
@@ -283,6 +277,7 @@ void midorator_setclipboard(GdkAtom atom, const char *str) {
 }
 
 char* midorator_getclipboard(GdkAtom atom) {
+	logextra("%p", atom);
 	if (atom == GDK_NONE)
 		atom = GDK_SELECTION_PRIMARY;
 	GtkClipboard *c = gtk_clipboard_get(atom);
@@ -293,6 +288,7 @@ char* midorator_getclipboard(GdkAtom atom) {
 		return NULL;
 	char *ret = strdup(str);
 	g_free(str);
+	logextra("ret: %s", ret);
 	return ret;
 }
 
@@ -1817,6 +1813,8 @@ static_f char midorator_mode(GtkWidget* web_view, char mode) {
 }
 
 static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view) {
+	logextra("%p, %p, %p", web_view, event, view);
+	logextra("%i", event->keyval);
 	midorator_message(web_view, NULL, NULL, NULL);
 	midorator_current_view(&web_view);
 	gtk_widget_grab_focus(web_view);
@@ -1840,9 +1838,12 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 		// Do nothing
 	} else {
 		GdkKeymap *km = gdk_keymap_get_default();
+		logextra("%p", km);
 		GdkKeymapKey kk = {event->hardware_keycode};
+		logextra("%i, %i, %i", event->hardware_keycode, event->state, event->group);
 		gdk_keymap_translate_keyboard_state(km, event->hardware_keycode, event->state, event->group, NULL, NULL, &kk.level, NULL);
 		guint kv = gdk_keymap_lookup_key(km, &kk);
+		logextra("%i", kv);
 		if (!kv)
 			kv = event->keyval;
 		
