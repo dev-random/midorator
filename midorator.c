@@ -1733,27 +1733,19 @@ static_f char* midorator_make_uri(MidoriBrowser *browser, char **args) {
 		}
 	}
 
-	const char *search = midorator_options("search", args[0], NULL);
-	if (search)
+	const char *search = NULL;
+
+	GtkActionGroup *actions = midori_browser_get_action_group(browser);
+	GtkAction *action = gtk_action_group_get_action(actions, "Search");
+	KatzeArray *arr = midori_search_action_get_search_engines(MIDORI_SEARCH_ACTION(action));
+	KatzeItem *item = katze_array_find_token(arr, args[0]);
+	if (item)
 		args++;
+	else
+		item = midori_search_action_get_default_item(MIDORI_SEARCH_ACTION(action));
+	if (item)
+		search = katze_item_get_uri(item);
 
-	if (!search) {
-		GtkActionGroup *actions = midori_browser_get_action_group(browser);
-		GtkAction *action = gtk_action_group_get_action(actions, "Search");
-		KatzeArray *arr = midori_search_action_get_search_engines(MIDORI_SEARCH_ACTION(action));
-		KatzeItem *item = katze_array_find_token(arr, args[0]);
-		if (item)
-			args++;
-		else
-			item = midori_search_action_get_default_item(MIDORI_SEARCH_ACTION(action));
-		if (item)
-			search = katze_item_get_uri(item);
-	}
-
-	if (!search)
-		search = midorator_options("search", "default", NULL);
-	if (!search)
-		search = midorator_options("search", "google", NULL);
 	if (!search)
 		return strdup("about:blank");
 
@@ -2017,7 +2009,25 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 
 	} else if (strcmp(cmd[0], "search") == 0) {
 		midorator_cmdlen_assert(3);
-		midorator_options("search", cmd[1], cmd[2]);
+		MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
+		GtkActionGroup *actions = midori_browser_get_action_group(browser);
+		GtkAction *action = gtk_action_group_get_action(actions, "Search");
+		KatzeArray *arr = midori_search_action_get_search_engines(MIDORI_SEARCH_ACTION(action));
+		bool new = false;
+		KatzeItem *item = katze_array_find_token(arr, cmd[1]);
+		if (!item) {
+			new = true;
+			item = katze_item_new();
+		}
+		g_object_set (item,
+			"name", cmd[1],
+			"text", "",
+			"uri", cmd[2],
+			"icon", "",
+			"token", cmd[1],
+			NULL);
+		if (new)
+			katze_array_add_item(arr, item);
 
 	} else if (strcmp(cmd[0], "bookmark") == 0) {
 		midorator_cmdlen_assert(3);
