@@ -2274,7 +2274,8 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 }
 
 static_f void midorator_context_ready_cb (WebKitWebView* web_view, WebKitWebFrame* web_frame, JSContextRef js_context, JSObjectRef js_window, MidoriExtension* extension) {
-//	midorator_make_js_callback(js_context, GTK_WIDGET(web_view));
+	midorator_process_command(GTK_WIDGET(web_view), "js_hook_pageload");
+	// TODO: normal hooks
 }
 
 static_f gboolean midorator_navrequest_cb (WebKitWebView *web_view, WebKitWebFrame *frame, WebKitNetworkRequest *request, WebKitWebNavigationAction *navigation_action, WebKitWebPolicyDecision *policy_decision, MidoriExtension* extension) {
