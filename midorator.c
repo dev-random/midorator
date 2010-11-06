@@ -1846,7 +1846,7 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			g_free(os);
 		}
 		int mask = GDK_CONTROL_MASK | GDK_MOD1_MASK | GDK_MOD4_MASK;
-		if (kv > 127)
+		if (kv > 127 || kv <= 32)
 			mask |= GDK_SHIFT_MASK;
 		if (event->state & mask) {
 			char *os = sequence;
