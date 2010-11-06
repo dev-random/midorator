@@ -2281,6 +2281,7 @@ static_f void midorator_context_ready_cb (WebKitWebView* web_view, WebKitWebFram
 static_f gboolean midorator_navrequest_cb (WebKitWebView *web_view, WebKitWebFrame *frame, WebKitNetworkRequest *request, WebKitWebNavigationAction *navigation_action, WebKitWebPolicyDecision *policy_decision, MidoriExtension* extension) {
 //	midorator_entry(GTK_WIDGET(web_view), NULL);
 
+	// TODO: get rid of this hack
 	GdkEventKey e = {};
 	e.keyval = GDK_Escape;
 	midorator_key_press_event_cb(GTK_WIDGET(web_view), &e, NULL);
@@ -2396,6 +2397,20 @@ static_f void midorator_del_browser_cb (MidoriExtension* extension, MidoriBrowse
 		(GtkCallback)midorator_del_tab_cb, extension);
 }
 
+static_f void midorator_tab_switched_cb (MidoriBrowser* browser) {
+	GtkWidget* w;
+	midorator_findwidget_macro(GTK_WIDGET(browser), w, GTK_IS_NOTEBOOK(w));
+	if (!w)
+		return;
+	w = gtk_notebook_get_nth_page(GTK_NOTEBOOK(w), gtk_notebook_get_current_page(GTK_NOTEBOOK(w)));
+	if (!w)
+		return;
+	midorator_findwidget_macro(w, w, WEBKIT_IS_WEB_VIEW(w));
+	if (!w)
+		return;
+	midorator_process_command(w, "js_fix_mode");
+}
+
 static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, MidoriExtension* extension) {
 	midori_browser_foreach (browser,
 		(GtkCallback)midorator_add_tab_foreach_cb, extension);
@@ -2403,7 +2418,8 @@ static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, 
 		G_CALLBACK (midorator_add_tab_cb), extension);
 	g_signal_connect (extension, "deactivate",
 		G_CALLBACK (midorator_del_browser_cb), browser);
-
+	g_signal_connect (browser, "notify::tab",
+		G_CALLBACK (midorator_tab_switched_cb), extension);
 }
 
 static_f void midorator_activate_cb (MidoriExtension* extension, MidoriApp* app) {
