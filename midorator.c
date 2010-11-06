@@ -1483,10 +1483,9 @@ static_f void midorator_search(GtkWidget* web_view, const char *match, bool forw
 	if (!match && !lastmatch)
 		return;
 	if (match && remember) {
+		webkit_web_view_unmark_text_matches(wv);
 		if (lastmatch[0])
 			webkit_web_view_mark_text_matches(wv, match, false, -1);
-		else
-			webkit_web_view_unmark_text_matches(wv);
 	}
 	webkit_web_view_search_text(wv, match ? match : lastmatch, false, forward, true);
 	webkit_web_view_set_highlight_text_matches(wv, true);
