@@ -1782,14 +1782,28 @@ static_f gboolean midorator_midori_browser_key_press_event_cb (GtkWidget* widget
 }
 
 static_f char midorator_mode(GtkWidget* web_view, char mode) {
-	static char oldmode = 'n';
-	if (mode)
-		oldmode = mode;
-	const char *modestring = "-- UNKNOWN MODE --";
-	if (oldmode == 'n')
-		modestring = "";
-	else if (oldmode == 'i')
-		modestring = "-- INSERT --";
+	static const char* modenames[256] = {};
+	if (!modenames['i']) {
+		modenames['i'] = "-- INSERT --";
+		modenames['n'] = "";
+		modenames['?'] = "-- UNKNOWN MODE --";
+	}
+	const char *modestring;
+	if (mode) {
+		modestring = modenames[mode];
+		if (!modestring)
+			modestring = modenames['?'];
+	} else {
+		GtkLabel *l = GTK_LABEL(midorator_findwidget(web_view, "midorator_mode"));
+		modestring = gtk_label_get_text(l);
+		mode = '?';
+		int i;
+		for (i = 0; i < 256; i++)
+			if (modenames[i] && strcmp(modenames[i], modestring) == 0) {
+				mode = i;
+				break;
+			}
+	}
 	if (web_view) {
 		midorator_show_mode(web_view, modestring);
 
@@ -1802,7 +1816,7 @@ static_f char midorator_mode(GtkWidget* web_view, char mode) {
 			class->key_press_event = midorator_midori_browser_key_press_event_cb;
 		}
 	}
-	return oldmode;
+	return mode;
 }
 
 static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view) {
