@@ -991,6 +991,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 		midorator_js_click(ctx, obj);
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "tabnew") || JSStringIsEqualToUTF8CString(param, "bgtab")) {
+		bool bg = JSStringIsEqualToUTF8CString(param, "bgtab");
 		JSStringRelease(param);
 		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
 			return JSValueMakeNull(ctx);
@@ -1003,7 +1004,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 				char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
 				if (href) {
 					// FIXME escape 'bad' symbols in href
-					midorator_process_command(web_view, "tabnew%c %s", JSStringIsEqualToUTF8CString(param, "bgtab") ? '!' : ' ', href);
+					midorator_process_command(web_view, "tabnew%c %s", bg ? '!' : ' ', href);
 					free(href);
 				}
 			}
@@ -1912,6 +1913,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	va_start(l, fmt);
 	char *buf = g_strdup_vprintf(fmt, l);
 	va_end(l);
+	logextra("%s", buf);
 	if (!buf)
 		return false;
 	if (buf[0] >= '0' && buf[0] <= '9') {
