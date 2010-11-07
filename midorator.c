@@ -22,7 +22,8 @@ static_f void midorator_del_browser_cb (MidoriExtension* extension, MidoriBrowse
 static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, MidoriExtension* extension);
 static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text);
 static_f char* midorator_process_request(GtkWidget *web_view, char **args, int arglen);
-static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...);
+#define midorator_process_command(web_view, ...) __midorator_process_command(web_view, __VA_ARGS__, NULL)
+static_f bool __midorator_process_command(GtkWidget *web_view, const char *fmt, ...);
 static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view);
 static_f GtkStatusbar* midorator_find_sb(GtkWidget *w);
 static_f char midorator_mode(GtkWidget* web_view, char mode);
@@ -1003,8 +1004,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			if (strcmp(tagname, "A") == 0) {
 				char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
 				if (href) {
-					// FIXME escape 'bad' symbols in href
-					midorator_process_command(web_view, "tabnew%c %s", bg ? '!' : ' ', href);
+					midorator_process_command(web_view, NULL, bg ? "tabnew!" : "tabnew", href);
 					free(href);
 				}
 			}
@@ -1908,33 +1908,33 @@ static_f void midorator_do_restart(void) {
 	execlp(p, p, NULL);
 }
 
-static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
-	va_list l;
-	va_start(l, fmt);
-	char *buf = g_strdup_vprintf(fmt, l);
-	va_end(l);
-	logextra("%s", buf);
-	if (!buf)
-		return false;
-	if (buf[0] >= '0' && buf[0] <= '9') {
-		char *cmd;
-		long num = strtol(buf, &cmd, 10);
-		int i;
-		web_view = gtk_widget_ref(web_view);
-		for (i=0; i<num; i++)
-			if (!midorator_process_command(web_view, "%s", cmd)) {
-				g_free(buf);
-				gtk_widget_unref(web_view);
-				return false;
-			}
-		g_free(buf);
-		gtk_widget_unref(web_view);
-		return true;
-	
-	}
+static_f bool __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
 	char **cmd;
 	int cmdlen;
-	{
+	if (fmt) {
+		va_list l;
+		va_start(l, fmt);
+		char *buf = g_strdup_vprintf(fmt, l);
+		va_end(l);
+		logextra("%s", buf);
+		if (!buf)
+			return false;
+		if (buf[0] >= '0' && buf[0] <= '9') {
+			char *cmd;
+			long num = strtol(buf, &cmd, 10);
+			int i;
+			web_view = gtk_widget_ref(web_view);
+			for (i=0; i<num; i++)
+				if (!midorator_process_command(web_view, "%s", cmd)) {
+					g_free(buf);
+					gtk_widget_unref(web_view);
+					return false;
+				}
+			g_free(buf);
+			gtk_widget_unref(web_view);
+			return true;
+		
+		}
 		GError *err = NULL;
 		char *buf2 = buf;
 		while (buf2[0] && strchr(" \t\n\r:", buf2[0]))
@@ -1946,13 +1946,25 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			g_free(buf);
 			return false;
 		}
+		g_free(buf);
+	} else {
+		va_list l;
+		va_start(l, fmt);
+		char *s;
+		for (cmdlen = 0; (s = va_arg(l, char*)); cmdlen++);
+		va_end(l);
+		cmd = g_new0(char*, cmdlen + 1);
+		va_start(l, fmt);
+		for (cmdlen = 0; (s = va_arg(l, char*)); cmdlen++)
+			cmd[cmdlen] = g_strdup(s);
+		va_end(l);
 	}
 
 #define midorator_cmdlen_assert(count) if (cmdlen != (count)) \
-{ midorator_error(web_view, "Command '%s' expects exactly %i argument(s)", cmd[0], (count) - 1); g_free(buf); g_strfreev(cmd); return false; }
+{ midorator_error(web_view, "Command '%s' expects exactly %i argument(s)", cmd[0], (count) - 1); g_strfreev(cmd); return false; }
 
 #define midorator_cmdlen_assert_range(min, max) if (cmdlen < (min) || cmdlen > (max)) \
-{ midorator_error(web_view, "Command '%s' expects %i to %i arguments", cmd[0], (min) - 1, (max) - 1); g_free(buf); g_strfreev(cmd); return false; }
+{ midorator_error(web_view, "Command '%s' expects %i to %i arguments", cmd[0], (min) - 1, (max) - 1); g_strfreev(cmd); return false; }
 
 	if (cmd[0][0] == '#' || cmd[0][0] == '"') {
 		// Do nothing, it's a comment
@@ -1986,7 +1998,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
 			char *js = g_uri_unescape_string(uri + strlen("javascript:"), NULL);
 			char *js2 = g_shell_quote(js);
-			midorator_process_command(web_view, "js %s", js2);
+			midorator_process_command(web_view, NULL, "js", js2);
 			g_free(js);
 			g_free(js2);
 		} else
@@ -1997,13 +2009,13 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	} else if (strcmp(cmd[0], "paste") == 0) {
 		midorator_cmdlen_assert(1);
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
-		midorator_process_command(web_view, "open %s", uri);
+		midorator_process_command(web_view, NULL, "open", uri);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "tabpaste") == 0) {
 		midorator_cmdlen_assert(1);
 		char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
-		midorator_process_command(web_view, "tabnew %s", uri);
+		midorator_process_command(web_view, NULL, "tabnew", uri);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "yank") == 0) {
@@ -2266,7 +2278,6 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 	} else if (strcmp(cmd[0], "pass") == 0) {
 		midorator_cmdlen_assert(1);
 		g_strfreev(cmd);
-		g_free(buf);
 		return false;
 
 	} else {
@@ -2276,12 +2287,10 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		} else {
 			midorator_error(web_view, "Invalid command: %s", cmd[0]);
 			g_strfreev(cmd);
-			g_free(buf);
 			return false;
 		}
 	}
 	g_strfreev(cmd);
-	g_free(buf);
 	return true;
 }
 
