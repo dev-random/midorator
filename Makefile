@@ -1,8 +1,14 @@
 
 all: midorator.so
 
-midorator.so: midorator.c midorator.h default.h
-	$(CC) midorator.c -Iincludes -o midorator.so -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 --cflags --libs) $(CFLAGS) $(LDFLAGS)
+midorator.o: midorator.c midorator.h default.h midorator-entry.h
+	$(CC) -c $< -Iincludes -o $@ -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 --cflags) $(CFLAGS)
+
+midorator-entry.o: midorator-entry.c midorator-entry.h
+	$(CC) -c $< -Iincludes -o $@ -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 --cflags) $(CFLAGS)
+
+midorator.so: midorator.o midorator-entry.o
+	$(CC) $^ -o $@ -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 --libs) $(LDFLAGS)
 
 default.h: default.config
 	sed 's/"/\\"/g;s/.*/\t"&",/' default.config > default.h
