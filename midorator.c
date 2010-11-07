@@ -990,7 +990,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			return JSValueMakeNull(ctx);
 		midorator_js_click(ctx, obj);
 		return JSValueMakeNull(ctx);
-	} else if (JSStringIsEqualToUTF8CString(param, "tabnew")) {
+	} else if (JSStringIsEqualToUTF8CString(param, "tabnew") || JSStringIsEqualToUTF8CString(param, "bgtab")) {
 		JSStringRelease(param);
 		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
 			return JSValueMakeNull(ctx);
@@ -1002,7 +1002,8 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			if (strcmp(tagname, "A") == 0) {
 				char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, obj, "href"));
 				if (href) {
-					midorator_process_command(web_view, "tabnew %s", href);
+					// FIXME escape 'bad' symbols in href
+					midorator_process_command(web_view, "tabnew%c %s", JSStringIsEqualToUTF8CString(param, "bgtab") ? '!' : ' ', href);
 					free(href);
 				}
 			}
@@ -1965,7 +1966,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 		else
 			midorator_mode(web_view, cmd[1][0]);
 
-	} else if (strcmp(cmd[0], "tabnew") == 0) {
+	} else if (strcmp(cmd[0], "tabnew") == 0 || strcmp(cmd[0], "tabnew!") == 0) {
 		MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
 		midorator_cmdlen_assert_range(1, 1025);
 		char *uri;
@@ -1973,7 +1974,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			uri = strdup("about:blank");
 		else
 			uri = midorator_make_uri(browser, cmd + 1);
-		g_signal_emit_by_name(midori_view_from_web_view(web_view), "new-tab", uri, false, NULL);
+		g_signal_emit_by_name(midori_view_from_web_view(web_view), "new-tab", uri, cmd[0][6] == '!', NULL);
 		free(uri);
 
 	} else if (strcmp(cmd[0], "open") == 0) {
@@ -2165,7 +2166,7 @@ static_f bool midorator_process_command(GtkWidget *web_view, const char *fmt, ..
 			const char *hintchars = midorator_options("option", "hintchars", NULL);
 			if (!hintchars)
 				hintchars = "0123456789";
-			midorator_hints(web_view, hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : "click");
+			midorator_hints(web_view, hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : (cmd[1][0] == 'b') ? "bgtab" : "click");
 		}
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
