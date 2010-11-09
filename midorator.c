@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include "midorator.h"
 #include "midorator-entry.h"
+#include "midorator-history.h"
 
 
 
@@ -1583,7 +1584,9 @@ static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
 	if (!e) {
 		e = GTK_ENTRY(midorator_entry_new(w));
 		logextra("%p", e);
-		g_object_set(e, "command-history", katze_array_new(G_TYPE_STRING), NULL);
+		MidoriApp *app = g_object_get_data(G_OBJECT(web_view), "midori-app");
+		KatzeArray *a = midorator_history_get_command_history(app);
+		g_object_set(e, "command-history", a, NULL);
 		g_signal_connect (e, "notify::text",
 			G_CALLBACK (midorator_entry_edited_cb), NULL);
 		g_signal_connect (e, "execute",
@@ -2357,6 +2360,9 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 		midorator_default_config(web_view);
 	}
 
+	MidoriApp *app = g_object_get_data(G_OBJECT(browser), "midori-app");
+	g_object_set_data(G_OBJECT(view), "midori-app", app);
+	g_object_set_data(G_OBJECT(web_view), "midori-app", app);
 	gtk_widget_grab_focus(web_view);
 }
 
@@ -2391,6 +2397,7 @@ static_f void midorator_tab_switched_cb (MidoriBrowser* browser) {
 }
 
 static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, MidoriExtension* extension) {
+	g_object_set_data(G_OBJECT(browser), "midori-app", app);
 	midori_browser_foreach (browser,
 		(GtkCallback)midorator_add_tab_foreach_cb, extension);
 	g_signal_connect (browser, "add-tab",

@@ -267,10 +267,14 @@ static void midorator_entry_class_init(MidoratorEntryClass *_class) {
 			G_TYPE_STRING);
 }
 
-static gboolean midorator_entry_restore_focus(MidoratorEntry* e) {
+static gboolean midorator_entry_is_visible(MidoratorEntry* e) {
 	gboolean v;
 	g_object_get(e, "visible", &v, NULL);
-	if (v) {
+	return v;
+}
+
+static gboolean midorator_entry_restore_focus(MidoratorEntry* e) {
+	if (midorator_entry_is_visible(e)) {
 		int p = gtk_editable_get_position(GTK_EDITABLE(e));
 		gtk_widget_grab_focus(GTK_WIDGET(e));
 		gtk_editable_set_position(GTK_EDITABLE(e), p);
@@ -279,8 +283,10 @@ static gboolean midorator_entry_restore_focus(MidoratorEntry* e) {
 }
 
 static void midorator_entry_edited_cb(MidoratorEntry* e) {
-	gtk_widget_show(GTK_WIDGET(e));
-	gtk_widget_grab_focus(GTK_WIDGET(e));
+	if (!midorator_entry_is_visible(e)) {
+		gtk_widget_show(GTK_WIDGET(e));
+		gtk_widget_grab_focus(GTK_WIDGET(e));
+	}
 	char *t = g_strdup(gtk_entry_get_text(GTK_ENTRY(e)));
 	if (t && t[0]) {
 		g_utf8_offset_to_pointer(t, gtk_editable_get_position(GTK_EDITABLE(e)))[0] = 0;
