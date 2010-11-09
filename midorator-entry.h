@@ -17,6 +17,7 @@ typedef struct _MidoratorEntry MidoratorEntry;
 typedef struct _MidoratorEntryClass MidoratorEntryClass;
 
 GType midorator_entry_get_type();
+MidoratorEntry* midorator_entry_new(GtkWidget *parent);
 
 #endif
 

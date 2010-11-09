@@ -15,15 +15,17 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "midorator.h"
+#include "midorator-entry.h"
 
 
 
+static_f void midorator_current_view(GtkWidget **web_view);
 static_f void midorator_del_browser_cb (MidoriExtension* extension, MidoriBrowser* browser);
 static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, MidoriExtension* extension);
 static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text);
 static_f char* midorator_process_request(GtkWidget *web_view, char **args, int arglen);
 #define midorator_process_command(web_view, ...) __midorator_process_command(web_view, __VA_ARGS__, NULL)
-static_f bool __midorator_process_command(GtkWidget *web_view, const char *fmt, ...);
+static_f gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...);
 static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey* event, MidoriView* view);
 static_f GtkStatusbar* midorator_find_sb(GtkWidget *w);
 static_f char midorator_mode(GtkWidget* web_view, char mode);
@@ -79,9 +81,10 @@ GtkWidget *midori_view_from_web_view(GtkWidget *web_view) {
 	return ret;
 }
 
-static_f bool midorator_string_to_bool(const char *string) {
+static_f gboolean midorator_string_to_bool(const char *string) {
 	return
 		g_ascii_strcasecmp(string, "true") ||
+		g_ascii_strcasecmp(string, "yes") ||
 		g_ascii_strcasecmp(string, "on") ||
 		g_ascii_strcasecmp(string, "+") ||
 		g_ascii_strcasecmp(string, "1");
@@ -313,7 +316,7 @@ static_f bool midorator_js_error(JSContextRef ctx, JSValueRef e, const char *pre
 	JSObjectRef obj = JSContextGetGlobalObject(ctx);
 	if (!JSObjectHasProperty(ctx, obj, ps)) {
 		JSStringRelease(ps);
-		return NULL;
+		return false;
 	}
 	JSValueRef v = JSObjectGetProperty(ctx, obj, ps, NULL);
 	JSStringRelease(ps);
@@ -1474,7 +1477,7 @@ static_f void midorator_message(GtkWidget* web_view, const char *message, const 
 	}
 }
 
-static_f void midorator_search(GtkWidget* web_view, const char *match, bool forward, bool remember) {
+static_f void midorator_search(GtkWidget* web_view, const char *match, gboolean forward, gboolean remember) {
 	static char *lastmatch = NULL;
 	WebKitWebView *wv = WEBKIT_WEB_VIEW(web_view);
 	if (match && remember) {
@@ -1493,13 +1496,14 @@ static_f void midorator_search(GtkWidget* web_view, const char *match, bool forw
 	webkit_web_view_set_highlight_text_matches(wv, true);
 }
 
-static_f void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
+static_f void midorator_entry_edited_cb(GtkEntry *e) {
+	GtkWidget* web_view = NULL;
+	g_object_get(e, "current-browser", &web_view, NULL);
+	midorator_current_view(&web_view);
 	const char *t = gtk_entry_get_text(e);
 	if (!t)
 		return;
-	else if (t[0] == 0)
-		midorator_entry(web_view, NULL);
-	else if (t[0] == ';' && t[1])
+	if (t[0] == ';' && t[1])
 		midorator_process_command(web_view, "hint %s", t + 1);
 	else if (t[0] == '/')
 		midorator_search(web_view, t + 1, true, false);
@@ -1507,87 +1511,28 @@ static_f void midorator_entry_edited_cb(GtkEntry *e, GtkWidget* web_view) {
 		midorator_search(web_view, t + 1, false, false);
 }
 
-static_f void midorator_entry_history(GtkEntry* e, bool up, bool store) {
-	static GList *hist = NULL;
-	const char *fulltext = gtk_entry_get_text(e);
-	GList *i;
-	if (store) {
-		for (i = g_list_first(hist); i; i = i ? i->next : g_list_first(hist))
-			if (g_str_equal((char*)i->data, fulltext)) {
-				g_free(i->data);
-				GList *p = i->prev;
-				hist = g_list_delete_link(hist, i);
-				i = p;
-			}
-		hist = g_list_prepend(hist, g_strdup(fulltext));
-		return;
-	}
-	int cursor = gtk_editable_get_position(GTK_EDITABLE(e));
-	char *text = g_strdup(fulltext);
-	g_utf8_offset_to_pointer(text, cursor)[0] = 0;
-	for (i = g_list_first(hist); i && strcmp((char*)i->data, fulltext); i = i->next);
-	if (up) {
-		for (i = i ? i : g_list_first(hist); i; i = i->next)
-			if (strncmp((char*)i->data, text, strlen(text)) == 0 && strcmp((char*)i->data, fulltext) != 0)
-				break;
-	} else {
-		for (i = i ? i : g_list_last(hist); i; i = i->prev)
-			if (strncmp((char*)i->data, text, strlen(text)) == 0 && strcmp((char*)i->data, fulltext) != 0)
-				break;
-	}
-	g_free(text);
-	if (i) {
-		gtk_entry_set_text(e, (char*)i->data);
-		gtk_editable_set_position(GTK_EDITABLE(e), cursor);
-	}
+static_f void midorator_entry_cancel_cb (GtkEntry* e) {
+	GtkWidget* web_view = NULL;
+	g_object_get(e, "current-browser", &web_view, NULL);
+	midorator_current_view(&web_view);
+	gtk_widget_grab_focus(web_view);
+	midorator_process_command(web_view, "unhint");
 }
 
-static_f gboolean midorator_entry_paste_clipboard_cb (GtkEntry* e, GtkWidget* web_view) {
-	if (!midorator_string_to_bool(midorator_options("option", "paste_primary", NULL)))
-		return false;
-	g_signal_stop_emission_by_name(e, "paste-clipboard");
-	char *text = gtk_clipboard_wait_for_text(gtk_clipboard_get(GDK_SELECTION_PRIMARY));
-	if (!text)
-		return true;
-	gtk_editable_delete_selection(GTK_EDITABLE(e));
-	int pos = gtk_editable_get_position(GTK_EDITABLE(e));
-	gtk_editable_insert_text(GTK_EDITABLE(e), text, -1, &pos);
-	gtk_editable_set_position(GTK_EDITABLE(e), pos);
-	g_free(text);
-	return true;
-}
-
-static_f gboolean midorator_entry_key_press_event_cb (GtkEntry* e, GdkEventKey* event, GtkWidget* web_view) {
-	if (event->keyval == GDK_Escape) {
-		midorator_entry(web_view, NULL);
-		return true;
-	} else if (event->keyval == GDK_Up) {
-		midorator_entry_history(e, true, false);
-	} else if (event->keyval == GDK_Down) {
-		midorator_entry_history(e, false, false);
-	} else if (event->keyval == GDK_Return) {
-		char *t = g_strdup(gtk_entry_get_text(e));
-		midorator_entry_history(e, false, true);
-		midorator_entry(web_view, NULL);
-		if (t[0] == ':')
-			midorator_process_command(web_view, "%s", t + 1);
-		else if (t[0] == ';' && t[1])
-			midorator_process_command(web_view, "hint %s", t + 1);
-		else if (t[0] == '/')
-			midorator_search(web_view, t + 1, true, true);
-		else if (t[0] == '?')
-			midorator_search(web_view, t + 1, false, true);
-		g_free(t);
-		return true;
-	} else
-		return false;
-}
-
-static_f bool midorator_entry_restore_focus(GtkEntry* e) {
-	int p = gtk_editable_get_position(GTK_EDITABLE(e));
-	gtk_widget_grab_focus(GTK_WIDGET(e));
-	gtk_editable_set_position(GTK_EDITABLE(e), p);
-	return false;
+static_f void midorator_entry_execute_cb (GtkEntry* e, const char *t) {
+	GtkWidget* web_view = NULL;
+	g_object_get(e, "current-browser", &web_view, NULL);
+	midorator_current_view(&web_view);
+	gtk_widget_grab_focus(web_view);
+	if (t[0] == ':')
+		midorator_process_command(web_view, "%s", t + 1);
+	else if (t[0] == ';' && t[1])
+		midorator_process_command(web_view, "hint %s", t + 1);
+	else if (t[0] == '/')
+		midorator_search(web_view, t + 1, true, true);
+	else if (t[0] == '?')
+		midorator_search(web_view, t + 1, false, true);
+	midorator_process_command(web_view, "unhint");
 }
 
 // Used to fix focus. Sometimes after switching tabs, input focus remains on old tab
@@ -1614,50 +1559,47 @@ static_f void midorator_current_view(GtkWidget **web_view) {
 }
 
 static_f GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
+	if (!text)
+		text = "";
+
 	// Find box
 	GtkStatusbar *sb = midorator_find_sb(web_view);
 	if (!sb)
 		return;
 	GtkWidget *w = gtk_statusbar_get_message_area(sb);
 
-	// Remove existing entry from box
+	// Find existing entry in box
 	GList *l = gtk_container_get_children(GTK_CONTAINER(w));
 	GList *li;
+	GtkEntry *e = NULL;
 	for (li = l; li; li = li->next)
-		if (GTK_IS_ENTRY(li->data))
-			gtk_container_remove(GTK_CONTAINER(w), GTK_WIDGET(li->data));
+		if (GTK_IS_ENTRY(li->data)) {
+			e = GTK_ENTRY(li->data);
+			break;
+		}
 	g_list_free(l);
 
-	// Add new entry
-	if (text && text[0]) {
-		GtkWidget *e = gtk_entry_new();
-		gtk_entry_set_has_frame(GTK_ENTRY(e), false);
-		g_object_set(gtk_settings_get_default(), "gtk-entry-select-on-focus", FALSE, NULL);
-		gtk_box_pack_start(GTK_BOX(w), e, true, true, 0);
-		gtk_widget_show(e);
-		gtk_entry_set_text(GTK_ENTRY(e), text);
-		gtk_widget_grab_focus(e);
-		gtk_editable_set_position(GTK_EDITABLE(e), -1);
-		gtk_box_reorder_child(GTK_BOX(w), e, 0);
-		gtk_widget_modify_base(e, GTK_STATE_NORMAL, &w->style->bg[0]);
-		gtk_widget_modify_base(e, GTK_STATE_ACTIVE, &w->style->bg[0]);
-		gtk_widget_modify_bg(e, GTK_STATE_NORMAL, &w->style->bg[0]);
-		gtk_widget_modify_bg(e, GTK_STATE_ACTIVE, &w->style->bg[0]);
-		g_signal_connect (e, "changed",
-			G_CALLBACK (midorator_entry_edited_cb), web_view);
-		g_signal_connect (e, "key-press-event",
-			G_CALLBACK (midorator_entry_key_press_event_cb), web_view);
-		g_signal_connect (e, "focus-out-event",
-			G_CALLBACK (midorator_entry_restore_focus), web_view);
-		g_signal_connect (e, "paste-clipboard",
-			G_CALLBACK (midorator_entry_paste_clipboard_cb), web_view);
-		midorator_entry_edited_cb(GTK_ENTRY(e), web_view);
-		return e;
-	} else {
-		midorator_process_command(web_view, "unhint");
-		gtk_widget_grab_focus(web_view);
+	// Add new entry if not found
+	if (!e) {
+		e = GTK_ENTRY(midorator_entry_new(w));
+		logextra("%p", e);
+		g_object_set(e, "command-history", katze_array_new(G_TYPE_STRING), NULL);
+		g_signal_connect (e, "notify::text",
+			G_CALLBACK (midorator_entry_edited_cb), NULL);
+		g_signal_connect (e, "execute",
+			G_CALLBACK (midorator_entry_execute_cb), NULL);
+		g_signal_connect (e, "cancel",
+			G_CALLBACK (midorator_entry_cancel_cb), NULL);
 	}
-	return NULL;
+
+	// Set text and stuff
+	g_object_set(e, "current-browser", web_view, NULL);
+	const char *oldtext = gtk_entry_get_text(e);
+	gtk_entry_set_text(e, text);
+	gtk_editable_set_position(GTK_EDITABLE(e), -1);
+	/*if (strcmp(oldtext, text) != 0)
+		g_signal_emit_by_name(e, "changed");*/
+	return GTK_WIDGET(e);
 }
 
 void midorator_uri_cb (GtkWidget *widget, MidoriBrowser *browser) {
@@ -1796,6 +1738,8 @@ static_f char midorator_mode(GtkWidget* web_view, char mode) {
 	} else {
 		GtkLabel *l = GTK_LABEL(midorator_findwidget(web_view, "midorator_mode"));
 		modestring = gtk_label_get_text(l);
+		if (!modestring)
+			modestring = "";
 		mode = '?';
 		int i;
 		for (i = 0; i < 256; i++)
@@ -1826,7 +1770,7 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	midorator_current_view(&web_view);
 	gtk_widget_grab_focus(web_view);
 
-	bool insert = midorator_mode(web_view, 0) == 'i';
+	gboolean insert = midorator_mode(web_view, 0) == 'i';
 	if (insert) {
 		if (event->keyval == GDK_Escape) {
 			midorator_mode(web_view, 'n');
@@ -1922,7 +1866,7 @@ static_f void midorator_do_restart(void) {
 	execlp(p, p, NULL);
 }
 
-static_f bool __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
+static_f gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
 	char **cmd;
 	int cmdlen;
 	if (fmt) {
@@ -2042,7 +1986,7 @@ static_f bool __midorator_process_command(GtkWidget *web_view, const char *fmt, 
 		GtkActionGroup *actions = midori_browser_get_action_group(browser);
 		GtkAction *action = gtk_action_group_get_action(actions, "Search");
 		KatzeArray *arr = midori_search_action_get_search_engines(MIDORI_SEARCH_ACTION(action));
-		bool new = false;
+		gboolean new = false;
 		KatzeItem *item = katze_array_find_token(arr, cmd[1]);
 		if (!item) {
 			new = true;
