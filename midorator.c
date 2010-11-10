@@ -997,6 +997,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "tabnew") || JSStringIsEqualToUTF8CString(param, "bgtab") || JSStringIsEqualToUTF8CString(param, "multitab")) {
 		bool bg = ! JSStringIsEqualToUTF8CString(param, "tabnew");
+		bool multi = JSStringIsEqualToUTF8CString(param, "multitab");
 		JSStringRelease(param);
 		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
 			return JSValueMakeNull(ctx);
@@ -1014,7 +1015,8 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			}
 			free(tagname);
 		}
-		midorator_process_command(web_view, "entry ';m'");
+		if (multi)
+			midorator_process_command(web_view, "entry ';m'");
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "yank")) {
 		JSStringRelease(param);
