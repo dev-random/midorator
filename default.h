@@ -1,4 +1,7 @@
 	"",
+	"alias q action TabClose",
+	"alias undo action UndoTabClose",
+	"",
 	"cmdmap : entry :",
 	"cmdmap <Tab> pass",
 	"cmdmap ; entry ;",
