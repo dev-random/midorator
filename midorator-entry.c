@@ -367,7 +367,31 @@ static void midorator_entry_history_down(MidoratorEntry* e) {
 }
 
 static gboolean midorator_entry_key_press_event_cb (MidoratorEntry* e, GdkEventKey* event) {
-	if (event->keyval == GDK_Escape) {
+	if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_a) {
+		gtk_editable_set_position(GTK_EDITABLE(e), 0);
+	} else if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_e) {
+		gtk_editable_set_position(GTK_EDITABLE(e), -1);
+	} else if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_f) {
+		gtk_editable_set_position(GTK_EDITABLE(e), gtk_editable_get_position(GTK_EDITABLE(e)) + 1);
+	} else if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_b) {
+		gtk_editable_set_position(GTK_EDITABLE(e), gtk_editable_get_position(GTK_EDITABLE(e)) - 1);
+	} else if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_p) {
+		gtk_editable_set_position(GTK_EDITABLE(e), 0);
+		midorator_entry_history_up(e);
+	} else if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_n) {
+		gtk_editable_set_position(GTK_EDITABLE(e), 0);
+		midorator_entry_history_down(e);
+	} else if ((event->state & GDK_CONTROL_MASK) && event->keyval == GDK_w) {
+		const char *t = gtk_entry_get_text(GTK_ENTRY(e));
+		int pos = gtk_editable_get_position(GTK_EDITABLE(e));
+		char *i;
+		for (i = g_utf8_offset_to_pointer(t, pos) - 1; i >= t && *i == ' '; i--);
+		for (; i >= t && *i != ' '; i--);
+		i++;
+		int newpos = g_utf8_pointer_to_offset(t, i);
+		gtk_editable_delete_text(GTK_EDITABLE(e), newpos, pos);
+		gtk_editable_set_position(GTK_EDITABLE(e), newpos);
+	} else if (event->keyval == GDK_Escape) {
 		g_signal_emit(e, signals[SIG_CANCEL], 0);
 	} else if (event->keyval == GDK_Tab) {
 		midorator_entry_perform_completion(e);
