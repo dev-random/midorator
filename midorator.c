@@ -995,8 +995,8 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			return JSValueMakeNull(ctx);
 		midorator_js_click(ctx, obj);
 		return JSValueMakeNull(ctx);
-	} else if (JSStringIsEqualToUTF8CString(param, "tabnew") || JSStringIsEqualToUTF8CString(param, "bgtab")) {
-		bool bg = JSStringIsEqualToUTF8CString(param, "bgtab");
+	} else if (JSStringIsEqualToUTF8CString(param, "tabnew") || JSStringIsEqualToUTF8CString(param, "bgtab") || JSStringIsEqualToUTF8CString(param, "multitab")) {
+		bool bg = ! JSStringIsEqualToUTF8CString(param, "tabnew");
 		JSStringRelease(param);
 		if (argumentCount < 2 || !JSValueIsObject(ctx, arguments[1]))
 			return JSValueMakeNull(ctx);
@@ -1014,6 +1014,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			}
 			free(tagname);
 		}
+		midorator_process_command(web_view, "entry ';m'");
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "yank")) {
 		JSStringRelease(param);
@@ -2141,7 +2142,7 @@ static_f gboolean __midorator_process_command(GtkWidget *web_view, const char *f
 			const char *hintchars = midorator_options("option", "hintchars", NULL);
 			if (!hintchars)
 				hintchars = "0123456789";
-			midorator_hints(web_view, hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : (cmd[1][0] == 'b') ? "bgtab" : "click");
+			midorator_hints(web_view, hintchars, cmd[1] + 1, (cmd[1][0] == 'F') ? "tabnew" : (cmd[1][0] == 'y') ? "yank" : (cmd[1][0] == 'b') ? "bgtab" : (cmd[1][0] == 'm') ? "multitab" : "click");
 		}
 
 	} else if (strcmp(cmd[0], "unhint") == 0) {
