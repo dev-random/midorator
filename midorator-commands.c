@@ -8,12 +8,26 @@
 
 #include "midorator-commands.h"
 
+
+/* This file contains code that executes user commands.
+ * Also it provides information about commands to autocompleter.
+ */
+
+
+
+// Prototypes of some functions from midorator.c
 GtkWidget *midori_view_from_web_view(GtkWidget *web_view);
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name);
 const char* midorator_options(const char *group, const char *name, const char *value);
 void midorator_setclipboard(GdkAtom atom, const char *str);
 char* midorator_getclipboard(GdkAtom atom);
 
+
+// Find a widget by its name ('widget') and set (or get) its property 'name'.
+// midorator_setprop sets a property.
+// midorator_getprop returns its value.
+// midorator_set_get_prop sets a property and returns its previous value.
+// Returned value should be freed.
 #define midorator_setprop(web_view, widget, name, value) g_free(midorator_set_get_prop((web_view), (widget), (name), (value)))
 #define midorator_getprop(web_view, widget, name) (midorator_set_get_prop((web_view), (widget), (name), NULL))
 static char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, const char *name, const char *value) {
@@ -114,6 +128,8 @@ static char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, con
 	return ret;
 }
 
+// Creates an uri from a list of words entered by user.
+// They may be complete or incomplete uri, bookmark name or a search string.
 static char* midorator_make_uri(MidoriBrowser *browser, const char *args[]) {
 	if (!args[0] || !args[0][0])
 		return strdup("about:blank");
@@ -177,6 +193,7 @@ static char* midorator_make_uri(MidoriBrowser *browser, const char *args[]) {
 	return ret;
 }
 
+// Reverse of 'g_shell_parse_argv()'.
 static char* midorator_shellmerge(const char *argv[]) {
 	if (!argv || !argv[0])
 		return NULL;
@@ -190,6 +207,7 @@ static char* midorator_shellmerge(const char *argv[]) {
 	return ret;
 }
 
+// Callback function to be called by atexit() to restart midori
 static void midorator_do_restart() {
 	const char *p = g_get_prgname();
 	execlp(p, p, NULL);
@@ -203,8 +221,8 @@ static void midorator_do_restart() {
 
 
 
-
-
+// The following functions execute corresponding commands
+// (they are called by midorator_process_command())
 
 static gboolean midorator_command_widget(GtkWidget *web_view, const char *cmd, const char *args[]) {
 	midorator_setprop(web_view, args[0], args[1], args[2]);
@@ -244,7 +262,7 @@ static gboolean midorator_command_open(GtkWidget *web_view, const char *cmd, con
 
 static gboolean midorator_command_paste(GtkWidget *web_view, const char *cmd, const char *args[]) {
 	char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
-	midorator_process_command(web_view, NULL, strcmp(cmd, "paste") == 0 ? "open" : "tabopen", uri);
+	midorator_process_command(web_view, NULL, strcmp(cmd, "paste") == 0 ? "open" : "tabnew", uri);
 	free(uri);
 	return true;
 }
