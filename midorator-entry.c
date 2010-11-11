@@ -194,7 +194,11 @@ static void midorator_entry_cancel_default_cb(MidoratorEntry* e) {
 // We don't need that stupid 'gtk-entry-select-on-focus' stuff.
 // So we redefine 'grab_focus'.
 static void midorator_entry_grab_focus_cb(GtkWidget *w) {
+	gboolean old;
+	g_object_get(gtk_settings_get_default(), "gtk-entry-select-on-focus", &old, NULL);
+	g_object_set(gtk_settings_get_default(), "gtk-entry-select-on-focus", FALSE, NULL);
 	MIDORATOR_ENTRY_GET_CLASS(w)->old_grab_focus(w);
+	g_object_set(gtk_settings_get_default(), "gtk-entry-select-on-focus", old, NULL);
 }
 
 static void midorator_entry_class_init(MidoratorEntryClass *_class) {
