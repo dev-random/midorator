@@ -19,6 +19,7 @@
 GtkWidget *midori_view_from_web_view(GtkWidget *web_view);
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name);
 const char* midorator_options(const char *group, const char *name, const char *value);
+char ** midorator_options_keylist(const char *group);
 void midorator_setclipboard(GdkAtom atom, const char *str);
 char* midorator_getclipboard(GdkAtom atom);
 
@@ -690,6 +691,25 @@ char* midorator_process_request(GtkWidget *web_view, const char *args[], int arg
 		return g_strdup(midorator_options(arglen > 2 ? args[1] : "option", arglen > 2 ? args[2] : args[1], NULL));
 	}
 	return NULL;
+}
+
+char** midorator_commands_list() {
+	char **jscmd = midorator_options_keylist("jscmd");
+	int i;
+	int l = 0;
+	for (i = 0; midorator_commands_builtin[i].name; i++)
+		l++;
+	for (i = 0; jscmd[i]; i++)
+		l++;
+	char **ret = g_new(char*, l);
+	ret[l] = NULL;
+	l = 0;
+	for (i = 0; midorator_commands_builtin[i].name; i++)
+		ret[l++] = g_strdup(midorator_commands_builtin[i].name);
+	for (i = 0; jscmd[i]; i++)
+		ret[l++] = jscmd[i];
+	g_free(jscmd); // not 'g_strfreev()' because we reuse its contents
+	return ret;
 }
 
 

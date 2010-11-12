@@ -105,21 +105,38 @@ void midorator_error(GtkWidget *web_view, char *fmt, ...) {
 	g_free(msg);
 }
 
+GHashTable *opt_table = NULL;
+
 // Sets option (if "value" is non-NULL) and returns its value.
 // If value is supplied, returned value is not original one, but a table's internal copy.
 const char* midorator_options(const char *group, const char *name, const char *value) {
 	logextra("'%s', '%s', '%s'", group, name, value);
-	static GHashTable *table = NULL;
-	if (!table)
-		table = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)g_hash_table_destroy);
-	GHashTable *settings = (GHashTable*)g_hash_table_lookup(table, group);
+	if (!opt_table)
+		opt_table = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)g_hash_table_destroy);
+	GHashTable *settings = (GHashTable*)g_hash_table_lookup(opt_table, group);
 	if (!settings) {
 		settings = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-		g_hash_table_insert(table, g_strdup(group), settings);
+		g_hash_table_insert(opt_table, g_strdup(group), settings);
 	}
 	if (value)
 		g_hash_table_insert(settings, g_strdup(name), g_strdup(value));
 	return (const char *)g_hash_table_lookup(settings, name);
+}
+
+char ** midorator_options_keylist(const char *group) {
+	if (!opt_table)
+		opt_table = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify)g_hash_table_destroy);
+	GHashTable *settings = (GHashTable*)g_hash_table_lookup(opt_table, group);
+	guint len = g_hash_table_size(settings);
+	char **ret = g_new(char*, len + 1);
+	GHashTableIter it;
+	g_hash_table_iter_init(&it, settings);
+	int i;
+	void *r;
+	for (i = 0; g_hash_table_iter_next(&it, &r, NULL); i++)
+		ret[i] = g_strdup(r);
+	ret[len] = NULL;
+	return ret;
 }
 
 MidoriLocationAction *midorator_locationaction(MidoriBrowser *browser) {
@@ -1437,7 +1454,13 @@ static_f void midorator_entry_execute_cb (GtkEntry* e, const char *t) {
 	midorator_process_command(web_view, "unhint");
 }
 
-// Used to fix focus. Sometimes after switching tabs, input focus remains on old tab
+static_f void midorator_entry_completion_cb (GtkEntry* e, const char *t) {
+	if (!t || t[0] != ':')
+		return;
+	// TODO
+}
+
+// Is used to fix focus. Sometimes after switching tabs, input focus remains on old tab
 // (now background). This function replaces background web_view with foreground.
 static_f void midorator_current_view(GtkWidget **web_view) {
 	GtkWidget *w;
@@ -1494,6 +1517,8 @@ GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
 			G_CALLBACK (midorator_entry_execute_cb), NULL);
 		g_signal_connect (e, "cancel",
 			G_CALLBACK (midorator_entry_cancel_cb), NULL);
+		g_signal_connect (e, "completion-request",
+			G_CALLBACK (midorator_entry_completion_cb), NULL);
 	}
 
 	// Set text and stuff
