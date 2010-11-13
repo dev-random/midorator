@@ -152,5 +152,5 @@
 	"",
 	"set auto_switch_mode 1",
 	"",
-	"source ~/.midoratorrc",
+	"source! ~/.midoratorrc",
 	"",

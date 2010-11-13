@@ -1,4 +1,5 @@
 #include "midorator-entry.h"
+#include "midorator.h"
 
 #include <stdbool.h>
 #include <string.h>
@@ -119,16 +120,20 @@ static GList* midorator_entry_get_comp_list(MidoratorEntry* e, const char* str) 
 		return NULL;
 	size_t sl = strlen(str);
 	KatzeArray *c = e->completion_array;
-	if (!c)
+	if (c == NULL)
 		return NULL;
-	if (!katze_array_is_a(c, G_TYPE_STRING))
+	if (!katze_array_is_a(c, G_TYPE_STRING) && !katze_array_is_a(c, KATZE_TYPE_ITEM))
 		return NULL;
 	guint l = katze_array_get_length(c);
 	guint i;
 	GList *list = 0;
 	guint count = 0;
 	for (i = 0; i < l && count < 256; i++) {
-		const char *s = katze_array_get_nth_item(c, i);
+		const char *s;
+		if (katze_array_is_a(c, G_TYPE_STRING))
+			s = katze_array_get_nth_item(c, i);
+		else
+			s = ((KatzeItem*)katze_array_get_nth_item(c, i))->token;
 		if (strncmp(s, str, sl) == 0) {
 			list = g_list_append(list, (gpointer)s);
 			count++;
@@ -158,21 +163,32 @@ static void midorator_entry_find_completion_cb(MidoratorEntry* e, const char* st
 
 static void midorator_entry_perform_completion(MidoratorEntry* e) {
 	char *str = g_strdup(gtk_entry_get_text(GTK_ENTRY(e)));
-	if (str[0])
-		g_utf8_offset_to_pointer(str, gtk_editable_get_position(GTK_EDITABLE(e)))[0] = 0;
+	int prelen = 0;
+	if (str[0]) {
+		prelen = g_utf8_offset_to_pointer(str, gtk_editable_get_position(GTK_EDITABLE(e))) - str;
+		str[prelen] = 0;
+	}
 	GList *list = midorator_entry_get_comp_list(e, str);
 	g_free(str);
 	if (!list)
 		return;
 	str = g_strdup(list->data);
 	GList *i;
+	bool crop = false;
 	for (i = list->next; i; i = i->next) {
 		const char *s = i->data;
 		int j;
 		for (j = 0; s[j] && s[j] == str[j]; j++);
-		str[j] = 0;
+		if (str[j]) {
+			crop = true;
+			str[j] = 0;
+		}
 	}
-	gtk_entry_set_text(GTK_ENTRY(e), str);
+	int pos = gtk_editable_get_position(GTK_EDITABLE(e));
+	gtk_editable_insert_text(GTK_EDITABLE(e), str + prelen, -1, &pos);
+	if (!crop)
+		gtk_editable_insert_text(GTK_EDITABLE(e), " ", -1, &pos);
+	gtk_editable_set_position(GTK_EDITABLE(e), pos);
 	g_free(str);
 }
 
@@ -293,7 +309,10 @@ static void midorator_entry_edited_cb(MidoratorEntry* e) {
 	}
 	char *t = g_strdup(gtk_entry_get_text(GTK_ENTRY(e)));
 	if (t && t[0]) {
-		g_utf8_offset_to_pointer(t, gtk_editable_get_position(GTK_EDITABLE(e)))[0] = 0;
+		int l = g_utf8_strlen(t);
+		int p = gtk_editable_get_position(GTK_EDITABLE(e));
+		if (p < l)
+			g_utf8_offset_to_pointer(t, p)[0] = 0;
 		g_signal_emit(e, signals[SIG_COMPLETION_REQUEST], 0, t);
 	} else
 		g_signal_emit(e, signals[SIG_CANCEL], 0);

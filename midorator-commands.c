@@ -3,9 +3,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
-#include <midori/midori.h>
-#include <gtk/gtk.h>
-
 #include "midorator-commands.h"
 
 
@@ -375,7 +372,8 @@ static gboolean midorator_command_source(GtkWidget *web_view, const char *cmd, c
 		}
 	}
 	if (!f) {
-		midorator_error(web_view, "Can't open file");
+		if (cmd[6] == 0)
+			midorator_error(web_view, "Can't open file");
 		return false;
 	}
 	char buf[512];
@@ -600,6 +598,7 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "search", 2, 2, midorator_command_search },
 	{ "set", 2, 2, midorator_command_set },
 	{ "source", 1, 1, midorator_command_source },
+	{ "source!", 1, 1, midorator_command_source },
 	{ "submit", 0, 0, midorator_command_submit },
 	{ "tabnew!", 0, 1024, midorator_command_tabnew },
 	{ "tabnew", 0, 1024, midorator_command_tabnew },
@@ -693,22 +692,16 @@ char* midorator_process_request(GtkWidget *web_view, const char *args[], int arg
 	return NULL;
 }
 
-char** midorator_commands_list() {
+KatzeArray* midorator_commands_list() {
 	char **jscmd = midorator_options_keylist("jscmd");
 	int i;
 	int l = 0;
+	KatzeArray *ret = katze_array_new(KATZE_TYPE_ITEM);
 	for (i = 0; midorator_commands_builtin[i].name; i++)
-		l++;
+		katze_array_add_item(ret, g_object_new(KATZE_TYPE_ITEM, "token", midorator_commands_builtin[i].name, NULL));
 	for (i = 0; jscmd[i]; i++)
-		l++;
-	char **ret = g_new(char*, l);
-	ret[l] = NULL;
-	l = 0;
-	for (i = 0; midorator_commands_builtin[i].name; i++)
-		ret[l++] = g_strdup(midorator_commands_builtin[i].name);
-	for (i = 0; jscmd[i]; i++)
-		ret[l++] = jscmd[i];
-	g_free(jscmd); // not 'g_strfreev()' because we reuse its contents
+		katze_array_add_item(ret, g_object_new(KATZE_TYPE_ITEM, "token", jscmd[i], NULL));
+	g_strfreev(jscmd);
 	return ret;
 }
 

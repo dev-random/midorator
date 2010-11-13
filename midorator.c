@@ -1457,6 +1457,19 @@ static_f void midorator_entry_execute_cb (GtkEntry* e, const char *t) {
 static_f void midorator_entry_completion_cb (GtkEntry* e, const char *t) {
 	if (!t || t[0] != ':')
 		return;
+	if (!strchr(t, ' ')) {
+		KatzeArray *list = midorator_commands_list();
+		int l = katze_array_get_length(list);
+		int i;
+		for (i = 0; i < l; i++) {
+			KatzeItem *it = katze_array_get_nth_item(list, i);
+			char *str = g_strconcat(":", katze_item_get_token(it), NULL);
+			katze_item_set_token(it, str);
+			g_free(str);
+		}
+		g_object_set(e, "completion-array", list, NULL);
+		g_object_unref(list);
+	}
 	// TODO
 }
 
