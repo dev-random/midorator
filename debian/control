@@ -1,0 +1,16 @@
+Source: midorator
+Section: x11
+Priority: extra
+Maintainer: alexander barakin (aka sash-kan) <alex.barakin@gmail.com>
+Build-Depends: debhelper (>= 7.0.50~), locales, libpopt0, libsqlite3-dev, libwebkit-dev
+Standards-Version: 3.8.4
+Homepage: https://github.com/dev-random/midorator
+Vcs-Git: git://github.com/dev-random/midorator.git
+Vcs-Browser: https://github.com/dev-random/midorator.git
+
+Package: midorator
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, midori (>= 0.2.4), libsqlite3-0
+Description: Vimperator-like extension for Midori
+ Midorator is a Midori browser extension with strong inspiration from the Vim
+ text editor, with a mind towards faster and more efficient browsing.
