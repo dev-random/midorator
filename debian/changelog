@@ -1,6 +1,5 @@
-midorator (0.020101110-0.1) unstable; urgency=low
+midorator (0.020101110-1) unstable; urgency=low
 
-  * NMU build.
   * Initial release.
 
  -- alexander barakin (aka sash-kan) <alex.barakin@gmail.com>  Sun, 14 Nov 2010 20:51:32 +0300
