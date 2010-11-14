@@ -309,7 +309,7 @@ static void midorator_entry_edited_cb(MidoratorEntry* e) {
 	}
 	char *t = g_strdup(gtk_entry_get_text(GTK_ENTRY(e)));
 	if (t && t[0]) {
-		int l = g_utf8_strlen(t);
+		int l = g_utf8_strlen(t, -1);
 		int p = gtk_editable_get_position(GTK_EDITABLE(e));
 		if (p < l)
 			g_utf8_offset_to_pointer(t, p)[0] = 0;
