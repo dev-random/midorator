@@ -4,11 +4,11 @@
 
 EAPI=3
 
-EGIT_REPO_URI="http://github.com/dev-random/midorator.git"
+EGIT_REPO_URI="https://github.com/dev-random/midorator.git"
 inherit git
 
 DESCRIPTION="Vimperator-like extension for Midori"
-HOMEPAGE="http://github.com/dev-random/midorator"
+HOMEPAGE="https://github.com/dev-random/midorator"
 SRC_URI=""
 
 LICENSE="LGPL-2.1"
