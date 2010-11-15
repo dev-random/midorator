@@ -838,13 +838,13 @@ static_f void midorator_js_open(JSContextRef ctx, const char *href, JSObjectRef 
 	JSStringRelease(uri);
 }
 
-static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item) {
+static_f void midorator_js_click(JSContextRef ctx, JSObjectRef item, bool manual) {
 	if (JSValueToObject(ctx, midorator_js_getprop(ctx, item, "form"), NULL)) {
 		midorator_js_form_click(ctx, item, false);
 		return;
 	}
 	midorator_js_callprop_proto(ctx, item, "focus", 0, NULL);
-	if (midorator_js_is_js_enabled(ctx))
+	if (midorator_js_is_js_enabled(ctx) && !manual)
 		midorator_js_handle(ctx, item, "onclick", NULL);
 	else {
 		char *href = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, item, "href"));
@@ -907,7 +907,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 		JSObjectRef obj = JSValueToObject(ctx, arguments[1], NULL);
 		if (!obj)
 			return JSValueMakeNull(ctx);
-		midorator_js_click(ctx, obj);
+		midorator_js_click(ctx, obj, false);
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "tabnew") || JSStringIsEqualToUTF8CString(param, "bgtab") || JSStringIsEqualToUTF8CString(param, "multitab")) {
 		bool bg = ! JSStringIsEqualToUTF8CString(param, "tabnew");
@@ -1100,7 +1100,7 @@ static_f void midorator_js_go(JSContextRef ctx, const char *direction) {
 			continue;
 		if (g_ascii_strcasecmp(rel, direction) == 0) {
 			free(rel);
-			midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val));
+			midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val), true);
 			return;
 		}
 		free(rel);
@@ -1147,7 +1147,7 @@ static_f void midorator_js_go(JSContextRef ctx, const char *direction) {
 				g_free(text);
 				g_regex_unref(re);
 				g_regex_unref(tagre);
-				midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val));
+				midorator_js_click(ctx, midorator_js_v2o(ctx, iter.val), false);
 				return;
 			}
 			g_free(text);
