@@ -133,7 +133,7 @@ static GList* midorator_entry_get_comp_list(MidoratorEntry* e, const char* str) 
 		if (katze_array_is_a(c, G_TYPE_STRING))
 			s = katze_array_get_nth_item(c, i);
 		else
-			s = ((KatzeItem*)katze_array_get_nth_item(c, i))->token;
+			s = katze_item_get_token(katze_array_get_nth_item(c, i));
 		if (strncmp(s, str, sl) == 0) {
 			list = g_list_append(list, (gpointer)s);
 			count++;
