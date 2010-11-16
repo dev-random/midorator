@@ -590,7 +590,7 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "killtab", 1, 1, midorator_command_killtab },
 	{ "next!", 0, 0, midorator_command_next },
 	{ "next", 0, 0, midorator_command_next },
-	{ "open", 0, 1024, midorator_command_tabnew },
+	{ "open", 0, 1024, midorator_command_open },
 	{ "paste", 0, 0, midorator_command_paste },
 	{ "reload!", 0, 0, midorator_command_reload },
 	{ "reload", 0, 0, midorator_command_reload },
