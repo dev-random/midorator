@@ -679,8 +679,12 @@ gboolean midorator_process_command_v(GtkWidget *web_view, char **cmd, size_t cmd
 	long prefix = 0;
 	char *command = cmd[0];
 	char **args = cmd + 1;
+	if (cmdlen == 0 || command[0] == '#')
+		return false;
+
 	if (command[0] >= '0' && command[0] <= '9')
 		prefix = strtol(command, &command, 10);
+
 	int i;
 	for (i = 0; midorator_commands_builtin[i].name; i++)
 		if (strcmp(command, midorator_commands_builtin[i].name) == 0) {
