@@ -978,35 +978,18 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 }
 
 static_f JSValueRef midorator_js_private_callback(JSContextRef ctx, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception) {
-	if (argumentCount < 1)
+	if (argumentCount < 1 || argumentCount > 1024)
 		return JSValueMakeNull(ctx);
-	char *cmd = NULL;
-	char *request[argumentCount - 1];
-	bool get = false;
+	char *cmd[argumentCount + 1];
 	int i;
-	for (i=0; i < argumentCount; i++) {
-		char *cmdel = midorator_js_value_to_string(ctx, arguments[i]);
-		if (i == 0 && strcmp(cmdel, "get") == 0) {
-			free(cmdel);
-			get = true;
-		} else if (get) {
-			request[i-1] = cmdel;
-		} else {
-			char *cmdsh = g_shell_quote(cmdel);
-			free(cmdel);
-			if (cmd) {
-				char *cmd2 = g_strconcat(cmd, " ", cmdsh, NULL);
-				g_free(cmdsh);
-				g_free(cmd);
-				cmd = cmd2;
-			} else
-				cmd = cmdsh;
-		}
-	}
-	if (get) {
-		char *ret = midorator_process_request(midorator_js_get_wv(ctx), request, argumentCount - 1);
-		for (i=0; i < argumentCount - 1; i++)
-			free(request[i]);
+	for (i=0; i < argumentCount; i++)
+		cmd[i] = midorator_js_value_to_string(ctx, arguments[i]);
+	cmd[argumentCount] = NULL;
+
+	if (cmd[0] && strcmp(cmd[0], "get") == 0) {
+		char *ret = midorator_process_request(midorator_js_get_wv(ctx), cmd + 1, argumentCount - 1);
+		for (i=0; i < argumentCount; i++)
+			free(cmd[i]);
 		if (ret) {
 			JSStringRef s = JSStringCreateWithUTF8CString(ret);
 			g_free(ret);
@@ -1016,8 +999,9 @@ static_f JSValueRef midorator_js_private_callback(JSContextRef ctx, JSObjectRef 
 		} else
 			return JSValueMakeNull(ctx);
 	} else {
-		bool ret = midorator_process_command(midorator_js_get_wv(ctx), "%s", cmd);
-		g_free(cmd);
+		bool ret = midorator_process_command_v(midorator_js_get_wv(ctx), cmd, argumentCount);
+		for (i=0; i < argumentCount; i++)
+			free(cmd[i]);
 		return JSValueMakeBoolean(ctx, ret);
 	}
 }

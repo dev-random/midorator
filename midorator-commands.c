@@ -128,7 +128,7 @@ static char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, con
 
 // Creates an uri from a list of words entered by user.
 // They may be complete or incomplete uri, bookmark name or a search string.
-static char* midorator_make_uri(MidoriBrowser *browser, const char *args[]) {
+static char* midorator_make_uri(MidoriBrowser *browser, char *args[]) {
 	if (!args[0] || !args[0][0])
 		return strdup("about:blank");
 	if (strchr(args[0], ':')) {
@@ -191,24 +191,43 @@ static char* midorator_make_uri(MidoriBrowser *browser, const char *args[]) {
 	return ret;
 }
 
-// Reverse of 'g_shell_parse_argv()'.
-static char* midorator_shellmerge(const char *argv[]) {
-	if (!argv || !argv[0])
-		return NULL;
-	char *ret = g_shell_quote(argv[0]);
-	int i;
-	for (i=1; argv[i]; i++) {
-		char *ret2 = g_strconcat(ret, " ", g_shell_quote(argv[i]), NULL);
-		g_free(ret);
-		ret = ret2;
-	}
-	return ret;
-}
-
 // Callback function to be called by atexit() to restart midori
 static void midorator_do_restart() {
 	const char *p = g_get_prgname();
 	execlp(p, p, NULL);
+}
+
+static void midorator_parse_argv(unsigned char *line, size_t *o_len, char ***o_arr, size_t maxlen) {
+	if (!o_len && !o_arr)
+		return;
+	if (!line)
+		line = "";
+	size_t len, i;
+	len = 0;
+	for (i = 0; line[i]; i++)
+		if (line[i] > 32 && (i == 0 || line[i-1] <= 32))
+			len++;
+	if (len > maxlen)
+		len = maxlen;
+	if (o_len)
+		*o_len = len;
+	if (o_arr) {
+		char **arr = g_new(char*, len + 1);
+		arr[len] = NULL;
+		*o_arr = arr;
+		unsigned char *sbeg = line;
+		for (i = 0; i < len; i++) {
+			for (; sbeg[0] <= 32; sbeg++);
+			if (i == len - 1)
+				arr[i] = g_strdup(sbeg);
+			else {
+				size_t n;
+				for (n = 0; sbeg[n] > 32; n++);
+				arr[i] = g_strndup(sbeg, n);
+				sbeg += n;
+			}
+		}
+	}
 }
 
 
@@ -222,12 +241,12 @@ static void midorator_do_restart() {
 // The following functions execute corresponding commands
 // (they are called by midorator_process_command())
 
-static gboolean midorator_command_widget(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_widget(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_setprop(web_view, args[0], args[1], args[2]);
 	return true;
 }
 
-static gboolean midorator_command_insert(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_insert(GtkWidget *web_view, const char *cmd, char *args[]) {
 	if (args[0])
 		midorator_mode(web_view, args[0][0]);
 	else
@@ -235,7 +254,7 @@ static gboolean midorator_command_insert(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_tabnew(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_tabnew(GtkWidget *web_view, const char *cmd, char *args[]) {
 	MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
 	char *uri = midorator_make_uri(browser, args);
 	g_signal_emit_by_name(midori_view_from_web_view(web_view), "new-tab", uri, cmd[6] == '!', NULL);
@@ -243,7 +262,7 @@ static gboolean midorator_command_tabnew(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_open(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_open(GtkWidget *web_view, const char *cmd, char *args[]) {
 	MidoriBrowser* browser = midori_browser_get_for_widget(web_view);
 	char *uri = midorator_make_uri(browser, args);
 	if (strncmp(uri, "javascript:", strlen("javascript:")) == 0) {
@@ -258,21 +277,21 @@ static gboolean midorator_command_open(GtkWidget *web_view, const char *cmd, con
 	return true;
 }
 
-static gboolean midorator_command_paste(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_paste(GtkWidget *web_view, const char *cmd, char *args[]) {
 	char *uri = midorator_getclipboard(GDK_SELECTION_PRIMARY);
 	midorator_process_command(web_view, NULL, strcmp(cmd, "paste") == 0 ? "open" : "tabnew", uri);
 	free(uri);
 	return true;
 }
 
-static gboolean midorator_command_yank(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_yank(GtkWidget *web_view, const char *cmd, char *args[]) {
 	const char *uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(web_view));
 	midorator_setclipboard(GDK_SELECTION_PRIMARY, uri);
 	midorator_setclipboard(GDK_SELECTION_CLIPBOARD, uri);
 	return true;
 }
 
-static gboolean midorator_command_search(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_search(GtkWidget *web_view, const char *cmd, char *args[]) {
 	MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 	GtkActionGroup *actions = midori_browser_get_action_group(browser);
 	GtkAction *action = gtk_action_group_get_action(actions, "Search");
@@ -295,12 +314,12 @@ static gboolean midorator_command_search(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_set(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_set(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_options(strcmp(cmd, "set") == 0 ? "option" : cmd, args[0], args[1]);
 	return true;
 }
 
-static gboolean midorator_command_cmdmap(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_cmdmap(GtkWidget *web_view, const char *cmd, char *args[]) {
 	char *buf = g_strdup("");
 	int i;
 	for (i=0; args[0][i]; i++) {
@@ -343,24 +362,22 @@ static gboolean midorator_command_cmdmap(GtkWidget *web_view, const char *cmd, c
 		}
 		midorator_options(cmd+3, buf, "wait");
 	}
-	char *newcmd = midorator_shellmerge(args + 1);
-	midorator_options(cmd+3, buf, newcmd);
-	g_free(newcmd);
+	midorator_options(cmd+3, buf, args[1]);
 	g_free(buf);
 	return true;
 }
 
-static gboolean midorator_command_next(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_next(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_search(web_view, NULL, cmd[4] == 0, false);
 	return true;
 }
 
-static gboolean midorator_command_entry(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_entry(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_entry(web_view, args[0]);
 	return true;
 }
 
-static gboolean midorator_command_source(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_source(GtkWidget *web_view, const char *cmd, char *args[]) {
 	FILE *f = fopen(args[0], "r");
 	if (!f && args[0][0] == '~') {
 		const char *home = getenv("HOME");
@@ -406,12 +423,12 @@ static gboolean midorator_command_source(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_submit(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_submit(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_submit_form(web_view);
 	return true;
 }
 
-static gboolean midorator_command_wq(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_wq(GtkWidget *web_view, const char *cmd, char *args[]) {
 	// TODO: force saving
 	GtkWidget *w;
 	for (w = web_view; w && !GTK_IS_WINDOW(w); w = gtk_widget_get_parent(w));
@@ -420,12 +437,12 @@ static gboolean midorator_command_wq(GtkWidget *web_view, const char *cmd, const
 	return true;
 }
 
-static gboolean midorator_command_js(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_js(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_execute_user_script(web_view, args[0]);
 	return true;
 }
 
-static gboolean midorator_command_hint(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_hint(GtkWidget *web_view, const char *cmd, char *args[]) {
 	if (args[0] && args[0][0]) {
 		const char *hintchars = midorator_options("option", "hintchars", NULL);
 		if (!hintchars)
@@ -435,12 +452,12 @@ static gboolean midorator_command_hint(GtkWidget *web_view, const char *cmd, con
 	return true;
 }
 
-static gboolean midorator_command_unhint(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_unhint(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_hints(web_view, NULL, NULL, NULL);
 	return true;
 }
 
-static gboolean midorator_command_reload(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_reload(GtkWidget *web_view, const char *cmd, char *args[]) {
 	if (cmd[6])
 		webkit_web_view_reload_bypass_cache(WEBKIT_WEB_VIEW(web_view));
 	else
@@ -448,7 +465,7 @@ static gboolean midorator_command_reload(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_go(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_go(GtkWidget *web_view, const char *cmd, char *args[]) {
 	if (strcmp(args[0], "back") == 0) {
 		webkit_web_view_go_back(WEBKIT_WEB_VIEW(web_view));
 	} else if (strcmp(args[0], "forth") == 0) {
@@ -459,7 +476,7 @@ static gboolean midorator_command_go(GtkWidget *web_view, const char *cmd, const
 	return true;
 }
 
-static gboolean midorator_command_action(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_action(GtkWidget *web_view, const char *cmd, char *args[]) {
 	MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 	GtkActionGroup *actions = midori_browser_get_action_group(browser);
 	GtkAction *action = gtk_action_group_get_action(actions, args[0]);
@@ -472,7 +489,7 @@ static gboolean midorator_command_action(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_actions(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_actions(GtkWidget *web_view, const char *cmd, char *args[]) {
 	MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 	GtkActionGroup *actions = midori_browser_get_action_group(browser);
 	midorator_message(web_view, "Known actions are:", NULL, NULL);
@@ -489,7 +506,7 @@ static gboolean midorator_command_actions(GtkWidget *web_view, const char *cmd, 
 	return true;
 }
 
-static gboolean midorator_command_killtab(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_killtab(GtkWidget *web_view, const char *cmd, char *args[]) {
 	char *end = NULL;
 	int n = strtol(args[0], &end, 0);
 	if (!end || end[0]) {
@@ -506,7 +523,7 @@ static gboolean midorator_command_killtab(GtkWidget *web_view, const char *cmd, 
 	return true;
 }
 
-static gboolean midorator_command_restart(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_restart(GtkWidget *web_view, const char *cmd, char *args[]) {
 	// FIXME: this deadlocks when Midori is compiled with libunique
 	atexit(midorator_do_restart);
 	MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
@@ -514,7 +531,7 @@ static gboolean midorator_command_restart(GtkWidget *web_view, const char *cmd, 
 	return true;
 }
 
-static gboolean midorator_command_get(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_get(GtkWidget *web_view, const char *cmd, char *args[]) {
 	char *reply = midorator_process_request(web_view, args, -1);
 	if (reply) {
 		midorator_message(web_view, reply, NULL, NULL);
@@ -523,7 +540,7 @@ static gboolean midorator_command_get(GtkWidget *web_view, const char *cmd, cons
 	return true;
 }
 
-static gboolean midorator_command_alias(GtkWidget *web_view, const char *cmd, const char *args[]) {
+static gboolean midorator_command_alias(GtkWidget *web_view, const char *cmd, char *args[]) {
 	const char *name = args[0];
 	char *code = NULL;
 	int i;
@@ -570,7 +587,7 @@ static gboolean midorator_command_alias(GtkWidget *web_view, const char *cmd, co
 typedef struct midorator_builtin {
 	const char *name;
 	int min_args, max_args;
-	gboolean (*func) (GtkWidget *web_view, const char *cmd, const char *args[]);
+	gboolean (*func) (GtkWidget *web_view, const char *cmd, char *args[]);
 } midorator_builtin;
 
 midorator_builtin midorator_commands_builtin[] = {
@@ -578,8 +595,8 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "actions", 0, 0, midorator_command_actions },
 	{ "alias", 2, 1024, midorator_command_alias },
 	{ "bookmark", 2, 2, midorator_command_set },
-	{ "cmdmap", 2, 1024, midorator_command_cmdmap },
-	{ "cmdnmap", 2, 1024, midorator_command_cmdmap },
+	{ "cmdmap", 2, 2, midorator_command_cmdmap },
+	{ "cmdnmap", 2, 2, midorator_command_cmdmap },
 	{ "entry", 1, 1, midorator_command_entry },
 	{ "get", 1, 1024, midorator_command_get },
 	{ "go", 1, 1, midorator_command_go },
@@ -612,23 +629,34 @@ midorator_builtin midorator_commands_builtin[] = {
 };
 
 
+static size_t midorator_command_get_maxlen(const char *cmd) {
+	if (!cmd || !cmd[0])
+		return -1;
+	int i;
+	for (i = 0; midorator_commands_builtin[i].name; i++)
+		if (strcmp(midorator_commands_builtin[i].name, cmd) == 0)
+			return midorator_commands_builtin[i].max_args;
+	return -1;
+}
+
 gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) {
 	char **cmd = NULL;
-	int cmdlen;
+	size_t cmdlen;
 	if (fmt) {
 		va_list l;
 		va_start(l, fmt);
 		char *line = g_strdup_vprintf(fmt, l);
 		va_end(l);
 		GError *err = NULL;
-		if (!g_shell_parse_argv(line, &cmdlen, &cmd, &err)) {
-			if (err->code != G_SHELL_ERROR_EMPTY_STRING)
-				midorator_error(web_view, "Error parsing command: %s", err->message);
-			g_error_free(err);
-			g_free(line);
-			return false;
+		midorator_parse_argv(line, &cmdlen, &cmd, -1);
+		size_t maxlen = midorator_command_get_maxlen(cmd[0]);
+		if (cmdlen - 1 > maxlen) {
+			g_strfreev(cmd);
+			midorator_parse_argv(line, &cmdlen, &cmd, maxlen + 1);
 		}
 		g_free(line);
+		if (cmdlen == 0)
+			return false;
 	} else {
 		int i;
 		va_list l;
@@ -642,6 +670,12 @@ gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) 
 		cmdlen = i;
 		va_end(l);
 	}
+	gboolean ret = midorator_process_command_v(web_view, cmd, cmdlen);
+	g_strfreev(cmd);
+	return ret;
+}
+
+gboolean midorator_process_command_v(GtkWidget *web_view, char **cmd, size_t cmdlen) {
 	long prefix = 0;
 	char *command = cmd[0];
 	char **args = cmd + 1;
@@ -652,10 +686,9 @@ gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) 
 		if (strcmp(command, midorator_commands_builtin[i].name) == 0) {
 			if (cmdlen - 1 < midorator_commands_builtin[i].min_args || cmdlen - 1 > midorator_commands_builtin[i].max_args) {
 				if (midorator_commands_builtin[i].min_args == midorator_commands_builtin[i].max_args)
-					midorator_error(web_view, "Command '%s' expects exactly %i arguments", command, midorator_commands_builtin[i].min_args);
+					midorator_error(web_view, "Command '%s' expects exactly %i arguments; %i found", command, midorator_commands_builtin[i].min_args, cmdlen - 1);
 				else
 					midorator_error(web_view, "Command '%s' expects %i to %i arguments", command, midorator_commands_builtin[i].min_args, midorator_commands_builtin[i].max_args);
-				g_strfreev(cmd);
 				return false;
 			}
 			bool r = true;
@@ -664,22 +697,19 @@ gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) 
 			int j;
 			for (j = 0; j < prefix && r; j++)
 				r = midorator_commands_builtin[i].func(web_view, command, args);
-			g_strfreev(cmd);
 			return r;
 		}
 	const char *js = midorator_options("jscmd", command, NULL);
 	if (js) {
 		midorator_jscmd(web_view, js, args, cmdlen - 1);
-		g_strfreev(cmd);
 		return true;
 	} else {
-		midorator_error(web_view, "Invalid command: %s", command);
-		g_strfreev(cmd);
+		midorator_error(web_view, "Invalid command: '%s'", command);
 		return false;
 	}
 }
 
-char* midorator_process_request(GtkWidget *web_view, const char *args[], int arglen) {
+char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 	if (arglen == 0)
 		return NULL;
 	if (arglen < 0)
