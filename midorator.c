@@ -930,7 +930,7 @@ static_f JSValueRef midorator_js_callback(JSContextRef ctx, JSObjectRef function
 			free(tagname);
 		}
 		if (multi)
-			midorator_process_command(web_view, "entry ';m'");
+			midorator_process_command(web_view, "entry ;m");
 		return JSValueMakeNull(ctx);
 	} else if (JSStringIsEqualToUTF8CString(param, "yank")) {
 		JSStringRelease(param);
