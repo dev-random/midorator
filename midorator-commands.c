@@ -218,7 +218,7 @@ static void midorator_parse_argv(unsigned char *line, size_t *o_len, char ***o_a
 		unsigned char *sbeg = line;
 		for (i = 0; i < len; i++) {
 			for (; sbeg[0] <= 32; sbeg++);
-			if (i == len - 1)
+			if (i == len - 1 && i != 0)
 				arr[i] = g_strdup(sbeg);
 			else {
 				size_t n;
