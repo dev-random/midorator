@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include "midorator-commands.h"
+#include "midorator-history.h"
 
 
 /* This file contains code that executes user commands.
@@ -151,6 +152,26 @@ static char* midorator_make_uri(MidoriBrowser *browser, char *args[]) {
 			const char *ret = midorator_options("bookmark", args[0], NULL);
 			if (ret)
 				return strdup(ret);
+
+			MidoriApp *app = g_object_get_data(G_OBJECT(browser), "midori-app");
+			KatzeArray *a = midorator_history_get_bookmarks(app);
+			if (a) {
+				char *key = g_strdup_printf("[%s]", args[0]);
+				KatzeItem *it;
+				int l = katze_array_get_length(a);
+				int i;
+				for (i = 0; i < l; i++) {
+					it = katze_array_get_nth_item(a, i);
+					const char *text = katze_item_get_text(it);
+					if (text && strstr(text, key)) {
+						g_free(key);
+						g_object_unref(a);
+						return strdup(katze_item_get_uri(it));
+					}
+				}
+				g_free(key);
+				g_object_unref(a);
+			}
 		}
 	}
 

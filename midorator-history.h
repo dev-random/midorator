@@ -7,6 +7,7 @@
 
 KatzeArray* midorator_history_get_browser_history(MidoriApp* app);
 KatzeArray* midorator_history_get_command_history(MidoriApp* app);
+KatzeArray* midorator_history_get_bookmarks(MidoriApp* app);
 
 #endif
 

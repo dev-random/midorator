@@ -10,6 +10,30 @@ KatzeArray* midorator_history_get_browser_history(MidoriApp* app) {
 	return history;
 }
 
+KatzeArray* midorator_history_get_bookmarks(MidoriApp* app) {
+	KatzeArray *bookmarks = NULL;
+	KatzeArray *ret = katze_array_new(KATZE_TYPE_ITEM);
+	g_object_get(app, "bookmarks", &bookmarks, NULL);
+	sqlite3 *db = g_object_get_data(bookmarks, "db");
+	if (!db)
+		return NULL;
+	sqlite3_stmt* stmt;
+	sqlite3_prepare_v2(db, "SELECT title, uri, desc FROM bookmarks;", -1, &stmt, NULL);
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		const char *title = sqlite3_column_text(stmt, 0);
+		const char *uri = sqlite3_column_text(stmt, 1);
+		const char *desc = sqlite3_column_text(stmt, 2);
+		KatzeItem *it = katze_item_new();
+		katze_item_set_uri(it, uri);
+		katze_item_set_text(it, desc);
+		katze_item_set_name(it, title);
+		katze_array_add_item(ret, it);
+		g_object_unref(it);
+	}
+	sqlite3_finalize(stmt);
+	return ret;
+}
+
 static void midorator_history_fill(KatzeArray *a, sqlite3 *db, const char *table, const char *field) {
 	sqlite3_stmt* stmt;
 	char *cmd = g_strdup_printf("SELECT %s FROM %s ORDER BY id;", field, table);
