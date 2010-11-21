@@ -214,6 +214,9 @@ static char* midorator_make_uri(MidoriBrowser *browser, char *args[]) {
 
 // Callback function to be called by atexit() to restart midori
 static void midorator_do_restart() {
+	int i;
+	for (i = 3; i < 64; i++)
+		close(i);
 	const char *p = g_get_prgname();
 	execlp(p, p, NULL);
 }
