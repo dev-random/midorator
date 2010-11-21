@@ -58,7 +58,7 @@ static char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, con
 		gtk_container_child_get_property(GTK_CONTAINER(p), w, name, &v);
 	else
 		g_object_get_property(G_OBJECT(w), name, &v);
-	switch (sp->value_type) {
+	switch (G_TYPE_FUNDAMENTAL(sp->value_type)) {
 		case G_TYPE_STRING:
 			ret = g_value_dup_string(&v);
 			if (value)
