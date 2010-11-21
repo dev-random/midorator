@@ -16,7 +16,7 @@ KatzeArray* midorator_history_get_bookmarks(MidoriApp* app) {
 	g_object_get(app, "bookmarks", &bookmarks, NULL);
 	sqlite3 *db = g_object_get_data(bookmarks, "db");
 	if (!db)
-		return NULL;
+		return g_object_ref(bookmarks);
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db, "SELECT title, uri, desc FROM bookmarks;", -1, &stmt, NULL);
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
