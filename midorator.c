@@ -18,6 +18,7 @@
 #include "midorator-entry.h"
 #include "midorator-history.h"
 #include "midorator-commands.h"
+#include "midorator-message.h"
 
 
 
@@ -39,32 +40,6 @@ static_f char* midorator_html_decode(char *str);
 #undef g_signal_handlers_disconnect_by_func
 #define g_signal_handlers_disconnect_by_func(i, f, d) (g_signal_handlers_disconnect_matched((i), G_SIGNAL_MATCH_FUNC, 0, 0, NULL, (f), NULL))
 
-// recursively search for widget
-#define midorator_findwidget_macro(parent, iter, test) \
-{	\
-logextra("%s; %s", #parent, #test); \
-	GList *__l; \
-	GList *__i; \
-	__l = gtk_container_get_children(GTK_CONTAINER((parent))); \
-	iter = NULL; \
-	for (__i = __l; __i; __i = __i->next) { \
-		iter = GTK_WIDGET(__i->data); \
-logextra("%p: %s", iter, gtk_widget_get_name(iter)); \
-		if (test) \
-			break; \
-		if (GTK_IS_CONTAINER(__i->data)) { \
-			GtkContainer *c = GTK_CONTAINER(__i->data); \
-			GList *l2 = gtk_container_get_children(c); \
-			__l = g_list_concat(__l, l2); \
-		} \
-	} \
-	g_list_free(__l); \
-	if (!__i) \
-		iter = NULL; \
-}
-
-#define midorator_findwidget_up_macro(child, iter, test) \
-	for ((iter) = GTK_WIDGET((child)); (iter) && !(test); (iter) = gtk_widget_get_parent(GTK_WIDGET((iter))));
 
 // replacement of original function, made to work with midori-0.2.4 that doesn't have it
 GtkWidget *midori_view_get_web_view(MidoriView *view) {
@@ -1317,68 +1292,6 @@ static_f GtkStatusbar* midorator_find_sb(GtkWidget *w) {
 	return GTK_STATUSBAR(w);
 }
 
-void midorator_message(GtkWidget* web_view, const char *message, const char *bg, const char *fg) {
-	GtkWidget *w;
-	for (w = web_view; w && !GTK_IS_VBOX(w); w = gtk_widget_get_parent(w));
-	if (!w)
-		return;
-
-	GList *l = gtk_container_get_children(GTK_CONTAINER(w));
-	GList *li;
-	for (li = l; li; li = li->next)
-		if (GTK_IS_SCROLLED_WINDOW(li->data) && strcmp(gtk_widget_get_name(GTK_WIDGET(li->data)), "midorator_message_area") == 0)
-			break;
-
-	GtkScrolledWindow *sw;
-	GtkLabel *lab;
-	if (li) {
-		sw = GTK_SCROLLED_WINDOW(li->data);
-		li = gtk_container_get_children(GTK_CONTAINER(sw));
-		GtkContainer *vp = GTK_CONTAINER(li->data);
-		g_list_free(li);
-		li = gtk_container_get_children(vp);
-		lab = GTK_LABEL(li->data);
-		g_list_free(li);
-	} else {
-		sw = GTK_SCROLLED_WINDOW(gtk_scrolled_window_new(NULL, NULL));
-		gtk_widget_set_name(GTK_WIDGET(sw), "midorator_message_area");
-		gtk_widget_show(GTK_WIDGET(sw));
-		gtk_box_pack_start(GTK_BOX(w), GTK_WIDGET(sw), true, true, 0);
-
-		lab = GTK_LABEL(gtk_label_new(NULL));
-		gtk_scrolled_window_add_with_viewport(sw, GTK_WIDGET(lab));
-		gtk_widget_show(GTK_WIDGET(lab));
-		gtk_label_set_markup(lab, "");
-		gtk_label_set_selectable(lab, true);
-		gtk_misc_set_alignment(GTK_MISC(lab), 0, 0);
-	}
-	g_list_free(l);
-
-	if (message) {
-		char *text;
-		if (bg) {
-			if (fg)
-				text = g_markup_printf_escaped("<span color=\"%s\" bgcolor=\"%s\">  %s  \n</span>", fg, bg, message);
-			else
-				text = g_markup_printf_escaped("<span bgcolor=\"%s\">  %s  \n</span>", bg, message);
-		} else {
-			if (fg)
-				text = g_markup_printf_escaped("<span color=\"%s\">  %s  \n</span>", fg, message);
-			else
-				text = g_markup_printf_escaped("  %s  \n", message);
-		}
-
-		const char *oldtext = gtk_label_get_label(lab);
-		char *fulltext = g_strconcat(oldtext, text, NULL);
-		g_free(text);
-		gtk_label_set_markup(lab, fulltext);
-		g_free(fulltext);
-		gtk_widget_show(GTK_WIDGET(sw));
-	} else {
-		gtk_widget_hide(GTK_WIDGET(sw));
-		gtk_label_set_markup(lab, "");
-	}
-}
 
 void midorator_search(GtkWidget* web_view, const char *match, gboolean forward, gboolean remember) {
 	static char *lastmatch = NULL;
