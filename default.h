@@ -51,7 +51,7 @@
 	"cmdmap gt action TabNext",
 	"cmdmap <C-n> action TabNext",
 	"cmdmap <C-Tab> action TabNext",
-	"cmdnmap gt widget tabs page %i",
+	"cmdnmap gt js command(\"widget\", \"tabs\", \"page\", %i - 1);",
 	"cmdmap gT action TabPrevious",
 	"cmdmap <C-p> action TabPrevious",
 	"cmdmap g0 widget tabs page 0",
