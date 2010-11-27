@@ -56,12 +56,12 @@ GtkWidget *midori_view_from_web_view(GtkWidget *web_view) {
 }
 
 static_f gboolean midorator_string_to_bool(const char *string) {
-	return
+	return string && (
 		g_ascii_strcasecmp(string, "true") == 0 ||
 		g_ascii_strcasecmp(string, "yes") == 0 ||
 		g_ascii_strcasecmp(string, "on") == 0 ||
 		g_ascii_strcasecmp(string, "+") == 0 ||
-		g_ascii_strcasecmp(string, "1") == 0;
+		g_ascii_strcasecmp(string, "1") == 0);
 }
 
 void midorator_error(GtkWidget *web_view, char *fmt, ...) {
