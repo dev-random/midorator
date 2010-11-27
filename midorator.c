@@ -1598,6 +1598,11 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			return !midorator_string_to_bool(midorator_options("option", "pass_unhandled", NULL));
 		} else if (strcmp(meaning, "wait") == 0) {
 			return true;
+		} else if (strcmp(meaning, "pass") == 0) {
+			numprefix = 0;
+			g_free(sequence);
+			sequence = NULL;
+			return false;
 		} else {
 			int pr = numprefix;
 			numprefix = 0;
