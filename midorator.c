@@ -57,11 +57,11 @@ GtkWidget *midori_view_from_web_view(GtkWidget *web_view) {
 
 static_f gboolean midorator_string_to_bool(const char *string) {
 	return
-		g_ascii_strcasecmp(string, "true") ||
-		g_ascii_strcasecmp(string, "yes") ||
-		g_ascii_strcasecmp(string, "on") ||
-		g_ascii_strcasecmp(string, "+") ||
-		g_ascii_strcasecmp(string, "1");
+		g_ascii_strcasecmp(string, "true") == 0 ||
+		g_ascii_strcasecmp(string, "yes") == 0 ||
+		g_ascii_strcasecmp(string, "on") == 0 ||
+		g_ascii_strcasecmp(string, "+") == 0 ||
+		g_ascii_strcasecmp(string, "1") == 0;
 }
 
 void midorator_error(GtkWidget *web_view, char *fmt, ...) {
@@ -1595,7 +1595,7 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			numprefix = 0;
 			g_free(sequence);
 			sequence = NULL;
-			return true;
+			return !midorator_string_to_bool(midorator_options("option", "pass_unhandled", NULL));
 		} else if (strcmp(meaning, "wait") == 0) {
 			return true;
 		} else {
@@ -1604,11 +1604,12 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			g_free(sequence);
 			sequence = NULL;
 			if (pr && meaningN && meaningN[0])
-				return midorator_process_command(web_view, meaningN, pr);
+				midorator_process_command(web_view, meaningN, pr);
 			else if (pr)
-				return midorator_process_command(web_view, "%i%s", pr, meaning);
+				midorator_process_command(web_view, "%i%s", pr, meaning);
 			else
-				return midorator_process_command(web_view, "%s", meaning);
+				midorator_process_command(web_view, "%s", meaning);
+			return true;
 		}
 	}
 }
