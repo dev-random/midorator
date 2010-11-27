@@ -1393,6 +1393,14 @@ static_f void midorator_current_view(GtkWidget **web_view) {
 	g_list_free(l);
 }
 
+static_f gboolean midorator_is_current_view(GtkWidget *w) {
+	midorator_findwidget_up_macro(w, w, w && GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+	if (!w)
+		return false;
+	GtkNotebook *n = GTK_NOTEBOOK(gtk_widget_get_parent(w));
+	return gtk_notebook_page_num(n, w) == gtk_notebook_get_current_page(n);
+}
+
 GtkWidget *midorator_entry(GtkWidget* web_view, const char *text) {
 	if (!text)
 		text = "";
@@ -1624,13 +1632,13 @@ static_f void midorator_context_ready_cb (WebKitWebView* web_view, WebKitWebFram
 	// TODO: normal hooks
 }
 
+static_f void midorator_notify_uri_cb (WebKitWebView* web_view) {
+	if (midorator_is_current_view(GTK_WIDGET(web_view)))
+		midorator_process_command(web_view, NULL, "js_fix_mode");
+}
+
 static_f gboolean midorator_navrequest_cb (WebKitWebView *web_view, WebKitWebFrame *frame, WebKitNetworkRequest *request, WebKitWebNavigationAction *navigation_action, WebKitWebPolicyDecision *policy_decision, MidoriExtension* extension) {
 //	midorator_entry(GTK_WIDGET(web_view), NULL);
-
-	// TODO: get rid of this hack
-	GdkEventKey e = {};
-	e.keyval = GDK_Escape;
-	midorator_key_press_event_cb(GTK_WIDGET(web_view), &e, NULL);
 
 	return false;
 }
@@ -1700,6 +1708,8 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 		G_CALLBACK (midorator_navrequest_cb), extension);
 	g_signal_connect (web_view, "paste-clipboard",
 		G_CALLBACK (midorator_paste_clipboard_cb), browser);
+	g_signal_connect (web_view, "notify::uri",
+		G_CALLBACK (midorator_notify_uri_cb), NULL);
 	
 	GtkWidget *w = midorator_findwidget(GTK_WIDGET(browser), "MidoriLocationEntry");
 	GtkEditable *entry;
