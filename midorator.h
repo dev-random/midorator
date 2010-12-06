@@ -2,7 +2,7 @@
 #ifndef MIDORATOR_H
 #define MIDORATOR_H
 
-#define MIDORATOR_VERSION "0.020101127"
+#define MIDORATOR_VERSION "0.020101206"
 
 #ifdef DEBUG
 #	include <execinfo.h>

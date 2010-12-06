@@ -552,39 +552,7 @@ static_f bool midorator_js_is_visible(JSContextRef ctx, JSObjectRef el) {
 	return true;
 }
 
-static_f bool midorator_js_is_selected(JSContextRef ctx, JSObjectRef el, const char *selector) {
-	if (selector[0] != '.') {
-		int len = strcspn(selector, ".");
-		char *ename = midorator_js_value_to_string(ctx, midorator_js_getprop(ctx, el, "tagName"));
-		char *name = g_strndup(selector, len);
-		if (g_ascii_strcasecmp(name, ename) != 0) {
-			g_free(name);
-			free(ename);
-			return false;
-		}
-		g_free(name);
-		free(ename);
-
-		selector += len;
-	}
-
-	while (selector[0]) {
-		selector++;
-		int len = strcspn(selector, ".");
-		char *attr = g_strndup(selector, len);
-		selector += len;
-		char *eattr = midorator_js_getattr(ctx, el, attr);
-		g_free(attr);
-		if (!eattr || !eattr[0]) {
-			free(eattr);
-			return false;
-		}
-		free(eattr);
-	}
-	return true;
-}
-
-static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef w, char **sel) {
+static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef w, const char *sel) {
 	JSObjectRef ac = JSValueToObject(ctx, midorator_js_getprop(ctx, NULL, "Array"), NULL);
 	JSValueRef ret = JSObjectCallAsConstructor(ctx, ac, 0, NULL, NULL);
 	if (!ret || !JSValueToObject(ctx, ret, NULL))
@@ -600,18 +568,17 @@ static_f JSValueRef midorator_js_do_find_elements(JSContextRef ctx, JSObjectRef 
 	JSObjectRef doc = JSValueToObject(ctx, midorator_js_getprop(ctx, w, "document"), NULL);
 	if (!doc)
 		return JSValueMakeNull(ctx);	// happens when frame is blocked by AdBlock
-	JSObjectRef all = midorator_js_v2o(ctx, midorator_js_getprop(ctx, doc, "all"));
-	for (i = midorator_js_array_first(ctx, all); i.val; i = midorator_js_array_next(i)) {
-		int j;
-		for (j=0; sel[j]; j++)
-			if (midorator_js_is_selected(ctx, JSValueToObject(ctx, i.val, NULL), sel[j]) &&
-					midorator_js_is_visible(ctx, JSValueToObject(ctx, i.val, NULL))) {
+	JSStringRef ss = JSStringCreateWithUTF8CString(sel);
+	JSValueRef sv = JSValueMakeString(ctx, ss);
+	JSObjectRef all = midorator_js_v2o(ctx, midorator_js_callprop(ctx, doc, "querySelectorAll", 1, &sv));
+	JSStringRelease(ss);
+	if (all)
+		for (i = midorator_js_array_first(ctx, all); i.val; i = midorator_js_array_next(i))
+			if (midorator_js_is_visible(ctx, JSValueToObject(ctx, i.val, NULL))) {
 				midorator_js_callprop(ctx, JSValueToObject(ctx, ret, NULL), "push", 1, &i.val);
 				if (!ret || !JSValueToObject(ctx, ret, NULL))
 					*((char*)NULL) = 1;
-				break;
 			}
-	}
 	return ret;
 }
 
@@ -626,9 +593,7 @@ static_f JSValueRef midorator_js_find_elements(JSContextRef ctx, const char *act
 		selectors = midorator_options("option", "hint_default", NULL);
 	if (!selectors || !selectors[0])
 		return NULL;
-	char** strs = g_strsplit_set(selectors, " \t\n\r", -1);
-	JSValueRef ret = midorator_js_do_find_elements(ctx, JSContextGetGlobalObject(ctx), strs);
-	g_strfreev(strs);
+	JSValueRef ret = midorator_js_do_find_elements(ctx, JSContextGetGlobalObject(ctx), selectors);
 	return ret;
 }
 
