@@ -1523,6 +1523,8 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	if (insert) {
 		if (event->keyval == GDK_Escape) {
 			midorator_mode(web_view, 'n');
+			if (midorator_string_to_bool(midorator_options("option", "blur_on_escape", NULL)))
+				midorator_process_command(web_view, NULL, "blur");
 			return true;
 		} else
 			return false;
