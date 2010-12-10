@@ -1476,6 +1476,7 @@ char midorator_mode(GtkWidget* web_view, char mode) {
 	static const char* modenames[256] = {};
 	if (!modenames['i']) {
 		modenames['i'] = "-- INSERT --";
+		modenames['k'] = "-- KEY WAIT --";
 		modenames['n'] = "";
 		modenames['?'] = "-- UNKNOWN MODE --";
 	}
@@ -1519,8 +1520,8 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	midorator_current_view(&web_view);
 	gtk_widget_grab_focus(web_view);
 
-	gboolean insert = midorator_mode(web_view, 0) == 'i';
-	if (insert) {
+	char mode = midorator_mode(web_view, 0);
+	if (mode == 'i') {
 		if (event->keyval == GDK_Escape) {
 			midorator_mode(web_view, 'n');
 			if (midorator_string_to_bool(midorator_options("option", "blur_on_escape", NULL)))
@@ -1528,6 +1529,20 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 			return true;
 		} else
 			return false;
+	} else if (mode == 'k') {
+		GdkKeymap *km = gdk_keymap_get_default();
+		GdkKeymapKey kk = {event->hardware_keycode};
+		gdk_keymap_translate_keyboard_state(km, event->hardware_keycode, event->state, event->group, NULL, NULL, &kk.level, NULL);
+		guint kv = gdk_keymap_lookup_key(km, &kk);
+		if (!kv)
+			kv = event->keyval;
+		if (kv < 128) {
+			midorator_mode(web_view, 'n');
+			char c[2] = {kv, 0};
+			midorator_process_command(web_view, NULL, "js_keywait_cb", c);
+		}
+		// TODO else
+		return true;
 	}
 
 	static int numprefix = 0;
@@ -1540,12 +1555,9 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 		// Do nothing
 	} else {
 		GdkKeymap *km = gdk_keymap_get_default();
-		logextra("%p", km);
 		GdkKeymapKey kk = {event->hardware_keycode};
-		logextra("%i, %i, %i", event->hardware_keycode, event->state, event->group);
 		gdk_keymap_translate_keyboard_state(km, event->hardware_keycode, event->state, event->group, NULL, NULL, &kk.level, NULL);
 		guint kv = gdk_keymap_lookup_key(km, &kk);
-		logextra("%i", kv);
 		if (!kv)
 			kv = event->keyval;
 		

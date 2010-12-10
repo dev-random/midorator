@@ -599,6 +599,12 @@ static gboolean midorator_command_alias(GtkWidget *web_view, const char *cmd, ch
 	return r;
 }
 
+static gboolean midorator_command_error(GtkWidget *web_view, const char *cmd, char *args[]) {
+	midorator_error(web_view, "%s", args[0]);
+	return 1;
+}
+
+
 
 
 
@@ -622,6 +628,7 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "cmdmap", 2, 2, midorator_command_cmdmap },
 	{ "cmdnmap", 2, 2, midorator_command_cmdmap },
 	{ "entry", 1, 1, midorator_command_entry },
+	{ "error", 1, 1, midorator_command_error },
 	{ "get", 1, 1024, midorator_command_get },
 	{ "go", 1, 1, midorator_command_go },
 	{ "hint", 1, 1, midorator_command_hint },
