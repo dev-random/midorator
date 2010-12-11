@@ -1228,7 +1228,7 @@ void midorator_submit_form(GtkWidget* web_view) {
 }
 
 void midorator_execute_user_script(GtkWidget *web_view, const char *code) {
-	WebKitWebFrame *frame = webkit_web_view_get_main_frame(WEBKIT_WEB_VIEW(web_view));
+	WebKitWebFrame *frame = webkit_web_view_get_focused_frame(WEBKIT_WEB_VIEW(web_view));
 	if (!frame)
 		return;
 	JSGlobalContextRef ctx = webkit_web_frame_get_global_context(frame);
