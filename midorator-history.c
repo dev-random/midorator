@@ -36,7 +36,7 @@ KatzeArray* midorator_history_get_bookmarks(MidoriApp* app) {
 
 static void midorator_history_fill(KatzeArray *a, sqlite3 *db, const char *table, const char *field) {
 	sqlite3_stmt* stmt;
-	char *cmd = g_strdup_printf("SELECT %s FROM %s ORDER BY id;", field, table);
+	char *cmd = g_strdup_printf("SELECT DISTINCT %s FROM %s ORDER BY id;", field, table, field);
 	sqlite3_prepare_v2(db, cmd, -1, &stmt, NULL);
 	g_free(cmd);
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -46,36 +46,30 @@ static void midorator_history_fill(KatzeArray *a, sqlite3 *db, const char *table
 	sqlite3_finalize(stmt);
 }
 
+static void midorator_history_update(KatzeArray *a, sqlite3 *db) {
+	sqlite3_exec(db, "BEGIN;", NULL, NULL, NULL);
+	sqlite3_exec(db, "DELETE FROM midorator_command_history;", NULL, NULL, NULL);
+	int i, l;
+	l = katze_array_get_length(a);
+	for (i = 0; i < l; i++) {
+		const char *item = katze_array_get_nth_item(a, i);
+		char *cmd = sqlite3_mprintf("INSERT INTO midorator_command_history (id, command) VALUES (%i, '%q');", i, item);
+		sqlite3_exec(db, cmd, NULL, NULL, NULL);
+		sqlite3_free(cmd);
+	}
+	sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL);
+}
+
 static void midorator_history_add_item_cb(KatzeArray *a, const char *item, sqlite3 *db) {
-	int index = 0;
-	sqlite3_stmt* stmt;
-	sqlite3_prepare_v2(db, "SELECT id FROM midorator_command_history ORDER BY id DESC LIMIT 1;", -1, &stmt, NULL);
-	if (sqlite3_step(stmt) == SQLITE_ROW)
-		index = sqlite3_column_int(stmt, 0) + 1;
-	sqlite3_finalize(stmt);
-	char *cmd = sqlite3_mprintf("INSERT INTO midorator_command_history (id, command) VALUES (%i, '%q');", index, item);
-	sqlite3_exec(db, cmd, NULL, NULL, NULL);
-	sqlite3_free(cmd);
+	midorator_history_update(a, db);
 }
 
 static void midorator_history_remove_item_cb(KatzeArray *a, const char *item, sqlite3 *db) {
-	char *cmd = sqlite3_mprintf("DELETE FROM midorator_command_history WHERE command = '%q';", item);
-	sqlite3_exec(db, cmd, NULL, NULL, NULL);
-	sqlite3_free(cmd);
+	midorator_history_update(a, db);
 }
 
 static void midorator_history_move_item_cb(KatzeArray *a, const char *item, int index, sqlite3 *db) {
-	sqlite3_stmt* stmt;
-	char *cmd = sqlite3_mprintf("SELECT command FROM midorator_command_history WHERE id = %i;", index);
-	sqlite3_prepare_v2(db, cmd, -1, &stmt, NULL);
-	sqlite3_free(cmd);
-	if (sqlite3_step(stmt) == SQLITE_ROW) {
-		const char *cmd = sqlite3_column_text(stmt, 0);
-		midorator_history_move_item_cb(a, cmd, index + 1, db);
-	}
-	cmd = sqlite3_mprintf("UPDATE midorator_command_history SET id = %i WHERE command = '%q';", index, item);
-	sqlite3_exec(db, cmd, NULL, NULL, NULL);
-	sqlite3_free(cmd);
+	midorator_history_update(a, db);
 }
 
 static void midorator_history_clear_cb(KatzeArray *a, sqlite3 *db) {
@@ -94,10 +88,10 @@ KatzeArray* midorator_history_get_command_history(MidoriApp* app) {
 		return NULL;
 	ret = katze_array_new(G_TYPE_STRING);
 	midorator_history_fill(ret, db, "midorator_command_history", "command");
-	g_signal_connect (ret, "add-item", G_CALLBACK (midorator_history_add_item_cb), db);
-	g_signal_connect (ret, "remove-item", G_CALLBACK (midorator_history_remove_item_cb), db);
-	g_signal_connect (ret, "move-item", G_CALLBACK (midorator_history_move_item_cb), db);
-	g_signal_connect (ret, "clear", G_CALLBACK (midorator_history_clear_cb), db);
+	g_signal_connect_after (ret, "add-item", G_CALLBACK (midorator_history_add_item_cb), db);
+	g_signal_connect_after (ret, "remove-item", G_CALLBACK (midorator_history_remove_item_cb), db);
+	g_signal_connect_after (ret, "move-item", G_CALLBACK (midorator_history_move_item_cb), db);
+	g_signal_connect_after (ret, "clear", G_CALLBACK (midorator_history_clear_cb), db);
 	
 	g_object_set_data(G_OBJECT(app), "midorator_command_history", ret);
 
