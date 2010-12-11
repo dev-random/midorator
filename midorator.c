@@ -123,40 +123,87 @@ MidoriLocationAction *midorator_locationaction(MidoriBrowser *browser) {
 
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	logextra("%p, '%s'", web_view, name);
-	GtkWidget *w;
-	if (strcmp(name, "view") == 0)
-		return web_view;
-	else if (strcmp(name, "tab") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
-		return w;
-	} else if (strcmp(name, "tablabel") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
-		return gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w);
-	} else if (strcmp(name, "tablabeltext") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
-		midorator_findwidget_macro(gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w), w, GTK_IS_LABEL(w));
-		return w;
-	} else if (strcmp(name, "tabs") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(w));
-		return w;
-	} else if (strcmp(name, "scrollbox") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
-		return w;
-	} else if (strcmp(name, "hscroll") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
-		return w ? GTK_WIDGET(gtk_scrolled_window_get_hscrollbar(GTK_SCROLLED_WINDOW(w))) : NULL;
-	} else if (strcmp(name, "vscroll") == 0) {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
-		return w ? GTK_WIDGET(gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(w))) : NULL;
-	} else if (strcmp(name, "statusbar") == 0) {
-		return GTK_WIDGET(midorator_find_sb(web_view));
-	} else {
-		midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
-		midorator_findwidget_macro(w, w, strcmp(gtk_widget_get_name(w), name) == 0);
-		if (!w) {
-			midorator_findwidget_macro(gtk_widget_get_toplevel(web_view), w, strcmp(gtk_widget_get_name(w), name) == 0);
+	if (strchr(name, '.')) {
+		char **names = g_strsplit(name, ".", 0);
+		GObject *w = G_OBJECT(midorator_findwidget(web_view, names[0]));
+		int i;
+		for (i = 1; names[i] && w; i++) {
+			if (names[i][0] == '#' && GTK_IS_CONTAINER(w)) {
+				guint num = atoi(names[i] + 1);
+				GList *children = gtk_container_get_children(GTK_CONTAINER(w));
+				GList *child = g_list_nth(children, num);
+				if (child)
+					w = G_OBJECT(child->data);
+				else
+					w = NULL;
+				g_list_free(children);
+			} else if (names[i][0] == ':' && GTK_IS_CONTAINER(w)) {
+				GType t = g_type_from_name(names[i] + 1);
+				if (t) {
+					GList *children = gtk_container_get_children(GTK_CONTAINER(w));
+					GList *child;
+					for (child = children; child; child = child->next)
+						if (G_TYPE_CHECK_INSTANCE_TYPE(child->data, t))
+							break;
+					if (child)
+						w = G_OBJECT(child->data);
+					else
+						w = NULL;
+					g_list_free(children);
+				} else
+					w = NULL;
+			} else {
+				GValue val = {};
+				g_value_init(&val, G_TYPE_OBJECT);
+				g_object_get_property(w, names[i], &val);
+				if (G_VALUE_HOLDS(&val, G_TYPE_OBJECT))
+					w = g_value_get_object(&val);
+				else
+					w = NULL;
+				g_value_unset(&val);
+			}
 		}
-		return w;
+		g_strfreev(names);
+		return (GtkWidget*)w;
+	} else {
+		GtkWidget *w;
+		if (strcmp(name, "view") == 0)
+			return web_view;
+		else if (strcmp(name, "tab") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+			return w;
+		} else if (strcmp(name, "tablabel") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+			return gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w);
+		} else if (strcmp(name, "tablabeltext") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+			midorator_findwidget_macro(gtk_notebook_get_tab_label(GTK_NOTEBOOK(gtk_widget_get_parent(w)), w), w, GTK_IS_LABEL(w));
+			return w;
+		} else if (strcmp(name, "tabs") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(w));
+			return w;
+		} else if (strcmp(name, "scrollbox") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
+			return w;
+		} else if (strcmp(name, "hscroll") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
+			return w ? GTK_WIDGET(gtk_scrolled_window_get_hscrollbar(GTK_SCROLLED_WINDOW(w))) : NULL;
+		} else if (strcmp(name, "vscroll") == 0) {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_SCROLLED_WINDOW(w));
+			return w ? GTK_WIDGET(gtk_scrolled_window_get_vscrollbar(GTK_SCROLLED_WINDOW(w))) : NULL;
+		} else if (strcmp(name, "statusbar") == 0) {
+			return GTK_WIDGET(midorator_find_sb(web_view));
+		} else if (strcmp(name, "browser") == 0) {
+			midorator_findwidget_up_macro(web_view, w, MIDORI_IS_BROWSER(w));
+			return w;
+		} else {
+			midorator_findwidget_up_macro(web_view, w, GTK_IS_NOTEBOOK(gtk_widget_get_parent(w)));
+			midorator_findwidget_macro(w, w, strcmp(gtk_widget_get_name(w), name) == 0);
+			if (!w) {
+				midorator_findwidget_macro(gtk_widget_get_toplevel(web_view), w, strcmp(gtk_widget_get_name(w), name) == 0);
+			}
+			return w;
+		}
 	}
 }
 
