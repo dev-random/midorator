@@ -1612,14 +1612,15 @@ static_f void midorator_context_ready_cb (WebKitWebView* web_view, WebKitWebFram
 }
 
 static_f void midorator_notify_uri_cb (WebKitWebView* web_view) {
-	if (midorator_is_current_view(GTK_WIDGET(web_view)))
-		midorator_process_command(web_view, NULL, "js_fix_mode");
+//	if (midorator_is_current_view(GTK_WIDGET(web_view)))
+//		midorator_process_command(web_view, NULL, "js_fix_mode");
 }
 
-static_f gboolean midorator_navrequest_cb (WebKitWebView *web_view, WebKitWebFrame *frame, WebKitNetworkRequest *request, WebKitWebNavigationAction *navigation_action, WebKitWebPolicyDecision *policy_decision, MidoriExtension* extension) {
-//	midorator_entry(GTK_WIDGET(web_view), NULL);
-
-	return false;
+static_f void midorator_loaded_cb (WebKitWebView *web_view, WebKitWebFrame *web_frame, gpointer ud) {
+	if (midorator_is_current_view(GTK_WIDGET(web_view)) &&
+			webkit_web_view_get_focused_frame(web_view) == web_frame &&
+			midorator_string_to_bool(midorator_options("option", "auto_switch_mode", NULL)))
+		midorator_process_command(web_view, NULL, "js_fix_mode");
 }
 
 static_f void midorator_del_tab_cb (MidoriView* view, MidoriBrowser* browser) {
@@ -1630,7 +1631,7 @@ static_f void midorator_del_tab_cb (MidoriView* view, MidoriBrowser* browser) {
 	g_signal_handlers_disconnect_by_func (
 		web_view, midorator_context_ready_cb, extension);
 	g_signal_handlers_disconnect_by_func (
-		web_view, midorator_navrequest_cb, extension);
+		web_view, midorator_loaded_cb, NULL);
 }
 
 static_f void midorator_default_config (GtkWidget* web_view) {
@@ -1683,8 +1684,8 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 		G_CALLBACK (midorator_key_press_event_cb), browser);
 	g_signal_connect (web_view, "window-object-cleared",
 		G_CALLBACK (midorator_context_ready_cb), extension);
-	g_signal_connect (web_view, "navigation-policy-decision-requested",
-		G_CALLBACK (midorator_navrequest_cb), extension);
+	g_signal_connect (web_view, "document-load-finished",
+		G_CALLBACK (midorator_loaded_cb), NULL);
 	g_signal_connect (web_view, "paste-clipboard",
 		G_CALLBACK (midorator_paste_clipboard_cb), browser);
 	g_signal_connect (web_view, "notify::uri",

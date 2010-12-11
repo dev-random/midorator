@@ -750,9 +750,59 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 	if (arglen < 0)
 		for (arglen = 0; args[arglen]; arglen++);
 	if (strcmp(args[0], "widget") == 0) {
-		return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
+		if (arglen == 1)
+			return NULL;
+		else if (arglen == 2) {
+			GType t = 0;
+			GtkWidget *w = midorator_findwidget(web_view, args[1]);
+			if (w)
+				t = G_OBJECT_TYPE(w);
+			else
+				t = g_type_from_name(args[1]);
+			if (!t || !G_TYPE_IS_CLASSED(t))
+				return NULL;
+			char *ret = g_strdup("");
+			GObject *o = g_object_new(t, NULL);
+			GObjectClass *c = G_OBJECT_GET_CLASS(o);
+			guint count;
+			GParamSpec **props = g_object_class_list_properties(c, &count);
+			if (props) {
+				int i;
+				for (i = 0; i < count; i++) {
+					char *old = ret;
+					ret = g_strconcat(old, g_param_spec_get_name(props[i]), "\n", NULL);
+					g_free(old);
+				}
+				g_free(props);
+			}
+			g_object_unref(o);
+			return ret;
+		} else
+			return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
 	} else if (strcmp(args[0], "option") == 0) {
 		return g_strdup(midorator_options(arglen > 2 ? args[1] : "option", arglen > 2 ? args[2] : args[1], NULL));
+	} else if (strcmp(args[0], "signals") == 0 && args[1]) {
+		GType t = 0;
+		GtkWidget *w = midorator_findwidget(web_view, args[1]);
+		if (w)
+			t = G_OBJECT_TYPE(w);
+		else
+			t = g_type_from_name(args[1]);
+		if (!t)
+			return NULL;
+		guint count;
+		guint *ss = g_signal_list_ids(t, &count);
+		if (!ss)
+			return NULL;
+		char *ret = g_strdup("");
+		int i;
+		for (i = 0; i < count; i++) {
+			char *old = ret;
+			ret = g_strconcat(ret, g_signal_name(ss[i]), "\n", NULL);
+			g_free(old);
+		}
+		g_free(ss);
+		return ret;
 	}
 	return NULL;
 }
