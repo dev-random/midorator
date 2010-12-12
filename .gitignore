@@ -3,4 +3,5 @@
 ./*.o
 ./README.html
 ./midorator.7
+./default.h
 
