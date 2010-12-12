@@ -1,3 +1,6 @@
 
 ./midorator.so
+./*.o
+./README.html
+./midorator.7
 

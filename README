@@ -1,0 +1,335 @@
+midorator(7)
+============
+:doctype:	manpage
+
+NAME
+----
+
+midorator - Vimperator-like plugin for Midori
+
+DESCRIPTION
+-----------
+
+Midorator provides vim-like appearance and keybindings for Midori,
+light-weight web browser.
+
+HINT NAVIGATION
+---------------
+
+One of the main features of Midorator (as a Vimperator clone) is a hint
+navigation system. You don't need to press <Tab> thousands of times to
+activate a link with keyboard. Just press ++f++, and each link will be marked
+with so-called 'hint' (usually a number, but you may switch it to be a
+sequence of letters). Now type one of those hints and link will be activated.
+
+Hint navigation can also be used to copy link destination to clipboard, to
+switch between form elements and so on. Look at keybindings list below.
+
+DEFAULT KEYBINDINGS
+-------------------
+
+bm ::	Show/hide menu bar
+bn ::	Show/hide navigation bar
+bb ::	Show/hide bookmarks bar
+: ::	Enter Midorator command
+/ ::	Search forward on page
+? ::	Search backward on page
+[[ ::	Go to ++previous++ page if it can be determined (see command ++go++)
+]] ::	Go to ++next++ page
+r ::	Reload page
+R ::	Reload page ignoring cache
+<space>, <Page_Down>, <C-f> ::	Scroll down one page
+<Page_Up>, <C-b> ::	Scroll up one page
+k, <Up> ::	Scroll up
+j, <Down> ::	Scroll down
+h, <Left> ::	Scroll left
+l, <Right> ::	Scroll right
+gg, <Home> ::	Scroll to top of page
+G, <End> ::	Scroll to bottom of page
+H, <BackSpace> ::	Go back in history
+L ::	Go forth in history
+p ::	Open URI from primary selection
+P ::	The same in new tab
+y ::	Copy current URI to clipboard and primary selection
+n ::	Repeat last search (forward)
+N ::	Repeat last search (backward)
+o ::	Enter URI to open in current tab
+O ::	The same, but entry will be already filled with current URI
+t ::	Enter URI to open in new tab
+T ::	The same, but entry will be already filled with current URI
+f, ;f ::	Hint navigation: click on link or active element
+F, ;F ::	Hint navigation: open link in new tab
+;b ::	Hint navigation: open hint in backgrount tab
+;m ::	Hint navigation: open hint in backgrount tab and prepare to type next hint
+;y ::	Hint navigation: copy link target to clipboard and primary selection
+i ::	Insert mode. All keyboard events will be passed directly to browser.
+Required to fill web forms or use keyboard-based web applications.
+Press <Esc> to disable insert mode. Midorator will try to enable and disable
+it automatically, but check it twice before typing ++d++ in web form ;)
+d ::	Close current tab and switch to next one
+D ::	Close current tab and switch to previous one
+u ::	Undo closing tab
+gt, <C-n>, <C-Tab> ::	Switch to the next tab
+_number_ gt ::	Switch to n'th tab
+gT, <C-p> ::	Switch to the previous tab
+g0 ::	Switch to the first tab
+g$ ::	Switch to the last tab
+<Enter> ::	Submit current web form
+<C-c> ::	Stop loading page
+gp ::	Open Midori preferences dialog
+gs ::	Open Midori search engines manager
+A ::	Open dialog to add current URI to bookmarks
+gu ::	Go up in directory hierarchy (http://example.com/a/b -> http://example.com/a)
+gU ::	Go to website root page
+m _char_ ::	Set page-local mark
+` _char_ ::	Go to page-local mark
+' _char_ ::	Set page-local mark and go to its previous position
+<Esc> ::	Unfocus current HTML element (or leave insert mode if it's enabled)
+
+MIDORATOR COMMANDS
+------------------
+
+Commands may be typed using ++:++ key (colon) or be binded to some key or sequence.
+Here is a list.
+
+action <string> ::
+	Activate Midori action (e.g. TabClose)
+
+actions ::
+	List available Midori actions
+
+alias <name> <command> ::
+	Give short name to long command
+
+blur ::
+	Unfocus current HTML element
+
+bookmark <name> <URI> ::
+	Creates a named bookmark to let you type short
+	name instead of long URI. Command shouldn't be typed manually;
+	instead it should be placed to ++~/.midoratorrc++.
++
+*This command is deprecated.* You should use Midori bookmarks instead. To set
+short name for a bookmark, enclose it in square brackets and put into bookmark
+description.
+
+cmdmap <keys> <command> ::
+	Bind command to a key or sequence
+
+cmdnmap <keys> <command> ::
+	The same, but will be used when user enters a number before typing
+	a key sequence. That number will be placed instead of ++%i++ in
+	++<command>++.
++
+By defaut, if ++cmdmap++ is present and ++cmdnmap++ is not, that number will be
+used as a number of times to repeat command.
+
+entry <text> ::
+	Open text entry in statusbar, place ++<text>++ there and wait for user
+	to complete input. Function of entry is determined by first character
+	of ++<text>++.
++
+For example, key ++t++ generates command ++entry :tabnew ++ (with trailing
+whitespace)
+
+error <message> ::
+	Display an error message
+
+get option <name> ::
+	Display value of an option set by command ++set++.
+
+get widget <name> ::
+	List properties of a widget. For internal purposes.
+
+get widget <name> <property> ::
+	Display value of a property. For internal purposes.
+
+get signals <name> ::
+	List signal that can be emitted or received by a widget.
+	For internal purposes.
+
+go back ::
+	Go back in history
+
+go forth ::
+	Go forth in history
+
+go <where> ::
+	If ++<where>++ is neither ++back++ nor ++forth++, go to corresponding
+	location. If there is a tag <link rel="++<where>++" ...> on page,
+	it will be used as destination. Otherwise Midorator will search for
+	a link using regular expressions from option ++go_<where>++ (see below)
+
+goto_mark [ <name> ] ::
+	Go to local mark
+
+hint, unhint ::
+	Please do not use those commands manually
+
+insert ::
+	Switch to insert mode. This command is bound to key ++i++.
+
+insert n ::
+	Switch to normal mode.
+
+js <code> ::
+	Execute JavaScript code
+
+jscmd <name> <code> ::
+	Create user-defined command. ++<code>++ is JavaScript code to be
+	executed. It will receive command-line parameters in array ++args++.
+	It can execute Midorator commands via local function ++command++.
++
+Some of commands listed here aren't built-in, but created as user-defined
+commands in default configuration file.
+
+killtab <number> ::
+	Close specified tab
+
+next ::
+	Repeat last search (forward)
+
+next! ::
+	Repeat last search (backward)
+
+open [ <URI> ] ::
+	Open ++<URI>++ (default is ++about:blank++) in current tab
+
+paste ::
+	Open URI from primary selection in current tab
+
+q ::
+	Close current tab (alias for ++action TabClose++)
+
+reload ::
+	Reload page
+
+reload! ::
+	Reload page ignoring cache
+
+restart ::
+	Restart Midori
+
+scroll [ h ] [+-]<number>[p] ::
+	Scroll vertically (or horizontally with ++h++). Forward with +++++,
+	backward with ++-++ or forward from beginning otherwise. 
+	In presence of ++p++ unit is page; otherwise unit is 100-200 pixels.
+
+set <name> <value> ::
+	Set option (see list below)
+
+set_mark [ <name> ] ::
+	Set local mark
+
+source <file> ::
+	Execute Midorator commands from file
+
+source! <file> ::
+	Do the same but don't complain if file doesn't exist
+
+submit ::
+	Submit current web form
+
+swap_mark [ <name> ] ::
+	Set local mark and go to its previous position
+
+tabnew [ <URI> ] ::
+	Open ++<URI>++ (default is ++about:blank++) in new tab
+
+tabnew! [ <URI> ] ::
+	Open ++<URI>++ (default is ++about:blank++) in background tab
+
+tabpaste ::
+	Open URI from primary selection in new tab
+
+undo ::
+	Undo closing tab (alias for ++action UndoTabClose++)
+
+widget <name> <property> <value> ::
+	Set property of widget. For internal purposes.
+
+wq ::
+	Exit Midori
+
+yank ::
+	Copy current URI to clipboard and primary selection
+
+
+OPTIONS
+-------
+
+hintstyle ::
+	CSS style of hints. If you experience long pause between pressing ++f++
+	and appearance of hints, replace style with simplier one (e.g. remove
+	attribute ++border-radius++).
++
+Default value:
++
+	set hintstyle background-color: #59FF00; border: 2px solid #4A6600; color: black; font-size: 9px; line-height: 9px; font-weight: bold; margin: 0px; padding: 1px; z-index: 1000; border-radius: 6px;
+
+hint_default, hint_tabnew, hint_bgtab, hint_yank ::
+	CSS selectors of HTML elements to mark with hints
+	(for ++f++, ++F++, ++;b++ and ++;y++ respectively)
++
+Default values:
++
+	set hint_default a[href], input, select, textarea, button, [onclick]
+	set hint_tabnew a[href]
+	set hint_bgtab a[href]
+	set hint_yank a[href], a[name]
+
+FILES
+-----
+
+/usr/lib/midori/midorator.so ::
+	Default location of plugin
+
+~/.midoratorrc ::
+	Local configuration file.
+	*Do not copy contents of default configuration file there!*
+	Only add your own commands / options.
+
+
+BUILDING FROM SOURCE
+--------------------
+
+Step 1: install Midori and its dependencies::
+	This plugin is tested with _Midori 0.2.4, 0.2.6-0.2.9_;
+	_Gtk+ 2.20.1_; _WebKitGTK 1.2.3_.
+
+Step 2: install devel-packages::
+	_gtk+-devel_, _webkit-gtk-devel_ and _sqlite3-devel_ are required.
+	Also install _asciidoc_ and _xsltproc_ if you want to build documentation.
+
+Step 3 (optional): replace Midori headers::
+	Midorator needs headers from Midori tarball to compile. Headers
+	from _Midori-0.2.6_ are already provided in directory ++./include++.
+	They should be sufficient, but better replace them with headers
+	from your version of Midori.
+
+Step 4: build::
+	Run as current user:
++
+	$ make
++
+If you want to build documentation, run:
++
+	$ make doc
+
+Step 5: install::
+	To install Midorator to default directory, run as root:
++
+	# make install
++
+If you hold Midori plugins in another directory, run instead:
++
+	# make MIDORI_LIBDIR=/path/to/plugins/ make install
++
+To install documentation, run:
++
+	# make install-doc
+
+Step 6: enable::
+	Run Midori, open panel ++Extensions++ and enable Midorator.
+
+
