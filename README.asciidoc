@@ -1,6 +1,7 @@
 midorator(7)
 ============
 :doctype:	manpage
+:encoding:	utf-8
 
 NAME
 ----
@@ -258,7 +259,45 @@ yank ::
 OPTIONS
 -------
 
+blur_on_escape ::
+	(boolean) Unfocus current HTML element when manually switching
+	to normal mode
++
+Default value:
++
+	set blur_on_escape off
+
+auto_switch_mode ::
+	(boolean) Try to switch modes automatically
++
+Default value:
++
+	set auto_switch_mode on
+
+go_<where> ::
+	(string)
+	Comma-separated list of regular expressions to search for links
+	(for command ++go++). You may create any number of "directions".
+	Note that tags ++<link rel="<where>" ...>++ have higher precedence
+	than regular expressions.
++
+Default values:
++
+	set go_next ^>$, ^>>$, ^>>>$, ^next$, next *[>»], ^далее, ^след[.у], next, >
+	set go_prev ^<$, ^<<$, ^<<<$, ^prev$, ^previous, prev[.]? *[<«], previous *[<«], ^назад, ^пред[.ы], previous, <
+
+hintchars ::
+	(string) Chars to use for hints. Default:
++
+	set hintchars 0123456789
++
+Another good value:
++
+	set hintchars fjdkslaghrueiwoqptyvmcxzbn
++
+
 hintstyle ::
+	(string)
 	CSS style of hints. If you experience long pause between pressing ++f++
 	and appearance of hints, replace style with simplier one (e.g. remove
 	attribute ++border-radius++).
@@ -268,7 +307,7 @@ Default value:
 	set hintstyle background-color: #59FF00; border: 2px solid #4A6600; color: black; font-size: 9px; line-height: 9px; font-weight: bold; margin: 0px; padding: 1px; z-index: 1000; border-radius: 6px;
 
 hint_default, hint_tabnew, hint_bgtab, hint_yank ::
-	CSS selectors of HTML elements to mark with hints
+	(string) CSS selectors of HTML elements to mark with hints
 	(for ++f++, ++F++, ++;b++ and ++;y++ respectively)
 +
 Default values:
@@ -277,6 +316,9 @@ Default values:
 	set hint_tabnew a[href]
 	set hint_bgtab a[href]
 	set hint_yank a[href], a[name]
+
+
+
 
 FILES
 -----
