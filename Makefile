@@ -4,6 +4,7 @@ DOCDIR = $(PREFIX)/share/doc/midorator/
 MIDORI_LIBDIR = $(PREFIX)/lib/midori/
 ASCIIDOC = /usr/bin/asciidoc
 A2X = /usr/bin/a2x
+INSTALL = /usr/bin/install
 GIT_REV = HEAD
 MIDORATOR_VERSION := $(shell sed -n '/VERSION/{s/.* \"//;s/\".*//;p}' midorator.h)
 DESTDIR =
@@ -44,7 +45,7 @@ midorator.7: README.asciidoc
 	test -e $@
 
 install: all
-	mkdir -p $(DESTDIR)$(MIDORI_LIBDIR)
+	$(INSTALL) -d $(DESTDIR)$(MIDORI_LIBDIR)
 	$(INSTALL) midorator.so $(DESTDIR)$(MIDORI_LIBDIR)
 
 clean:
@@ -54,7 +55,7 @@ archive:
 	git archive --prefix=midorator-$(MIDORATOR_VERSION)/ $(GIT_REV) | gzip > ../midorator_$(MIDORATOR_VERSION).orig.tar.gz
 
 install-doc: doc
-	mkdir -p $(DESTDIR)/usr/share/man/man7/ $(DESTDIR)$(DOCDIR)
+	$(INSTALL) -d $(DESTDIR)/usr/share/man/man7/ $(DESTDIR)$(DOCDIR)
 	$(INSTALL) midorator.7 $(DESTDIR)/usr/share/man/man7/
 	$(INSTALL) README.html $(DESTDIR)$(DOCDIR)
 
