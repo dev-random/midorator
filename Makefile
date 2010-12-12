@@ -1,4 +1,11 @@
 
+PREFIX = /usr
+DOCDIR = $(PREFIX)/share/doc/midorator/
+MIDORI_LIBDIR = $(PREFIX)/lib/midori/
+ASCIIDOC = /usr/bin/asciidoc
+A2X = /usr/bin/a2x
+DESTDIR =
+
 all: midorator.so
 
 midorator.o: midorator.c midorator.h default.h midorator-entry.h midorator-history.h midorator-commands.h
@@ -24,4 +31,29 @@ default.h: default.config
 
 debug:
 	$(MAKE) CFLAGS='-ggdb3 -DDEBUG -O0 -rdynamic' midorator.so
+
+doc: README.html midorator.7
+
+README.html: README.asciidoc
+	$(ASCIIDOC) -o $@ $<
+
+midorator.7: README.asciidoc
+	$(A2X) -L -f manpage $<
+	test -e $@
+
+install: all
+	mkdir -p $(DESTDIR)$(MIDORI_LIBDIR)
+	$(INSTALL) midorator.so $(DESTDIR)$(MIDORI_LIBDIR)
+
+clean:
+	rm -f *.o *.so README.html midorator.7
+
+install-doc: doc
+	mkdir -p $(DESTDIR)/usr/share/man/man7/ $(DESTDIR)$(DOCDIR)
+	$(INSTALL) midorator.7 $(DESTDIR)/usr/share/man/man7/
+	$(INSTALL) README.html $(DESTDIR)$(DOCDIR)
+
+
+
+.PHONY: all debug doc install install-doc clean
 
