@@ -1,7 +1,7 @@
 
-./midorator.so
-./*.o
-./README.html
-./midorator.7
-./default.h
+midorator.so
+*.o
+README.html
+midorator.7
+default.h
 
