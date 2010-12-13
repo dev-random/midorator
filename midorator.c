@@ -1,6 +1,6 @@
 #if 0
 # /*
-	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
+	sed -i 's:\(#[[:space:]]*define[[:space:]]\+MIDORATOR_VERSION[[:space:]]\+\).*:\1"0.1.0'"$(date -r "$0" '+%Y%m%d')"'":g' midorator.h
 	make debug || exit 1
 	cgdb midori
 	exit $?
