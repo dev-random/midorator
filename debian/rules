@@ -11,3 +11,9 @@
 
 %:
 	dh $@ 
+
+build: build-doc ;
+
+build-doc:
+	$(MAKE) doc
+
