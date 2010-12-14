@@ -1,21 +1,31 @@
+Step 1: install Midori and its dependencies:
+	This plugin is tested with Midori 0.2.4, 0.2.6-0.2.9;
+	Gtk+ 2.20.1; WebKitGTK 1.2.3.
 
-1) Required:
-   Install Midori. This extension is tested with midori-0.2.6.
+Step 2: install devel-packages:
+	gtk+-devel, webkit-gtk-devel and sqlite3-devel are required.
+	Also install asciidoc and xsltproc if you want to build documentation.
 
-2) Required:
-   Install devel-packages of gtk+2, webkit-gtk.
+Step 3 (optional): replace Midori headers:
+	Midorator needs headers from Midori tarball to compile. Headers
+	from Midori-0.2.6 are already provided in directory './include'.
+	They should be sufficient, but better replace them with headers
+	from your version of Midori.
 
-3) Optional, recomended:
-   Remove midori-headers from ./include, put headers of your version there.
+Step 4: build:
+	Run as current user:
+	 $ make
+	If you want to build documentation, run:
+	 $ make doc
 
-4) Required:
-   $ make
-   (as current user)
+Step 5: install:
+	To install Midorator to default directory, run as root:
+	 # make install
+	If you hold Midori plugins in another directory, run instead:
+	 # make MIDORI_LIBDIR=/path/to/plugins/ make install
+	To install documentation, run:
+	 # make install-doc
 
-5) Required:
-   Copy (as root) "midorator.so" to midori extensions dir
-   (usually /usr/lib/midori/)
-
-6) Required:
-   Run Midori, enable extension "Midorator".
+Step 6: enable:
+	Run Midori, open panel 'Extensions' and enable Midorator.
 
