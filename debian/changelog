@@ -4,7 +4,7 @@ midorator (0.1-1) unstable; urgency=low
 
  -- Oleg Popov (aka /dev/random) <dev-random@dev-random.ru>  Mon, 13 Dec 2010 19:48:48 +0300
 
-midorator (0.020101110-1) unstable; urgency=low
+midorator (0.0.020101110-1) unstable; urgency=low
 
   * Initial release.
 
