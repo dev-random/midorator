@@ -132,18 +132,18 @@ static char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, con
 static char* midorator_make_uri(MidoriBrowser *browser, char *args[]) {
 	if (!args[0] || !args[0][0])
 		return strdup("about:blank");
-	if (strchr(args[0], ':')) {
-		char *ret = strdup(args[0]);
-		int i;
-		for (i=1; args[i]; i++) {
-			ret = (char*)realloc(ret, strlen(ret) + strlen(args[i]) + 4);
-			strcat(ret, "%20");
-			strcat(ret, args[i]);
-		}
-		return ret;
-	}
 	if (!args[1]) {
-		if (strchr(args[0], '.')) {
+		int n = strspn(args[0], "qwertyuiopasdfghjklzxcvbnm");
+		if (args[0][n] == ':') {
+			char *ret = strdup(args[0]);
+			int i;
+			for (i=1; args[i]; i++) {
+				ret = (char*)realloc(ret, strlen(ret) + strlen(args[i]) + 4);
+				strcat(ret, "%20");
+				strcat(ret, args[i]);
+			}
+			return ret;
+		} else if (strchr(args[0], '.')) {
 			char *ret = malloc(strlen("http://") + strlen(args[0]) + 1);
 			strcpy(ret, "http://");
 			strcat(ret, args[0]);
