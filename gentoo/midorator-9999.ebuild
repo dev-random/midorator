@@ -25,16 +25,22 @@ DEPEND="doc? ( app-text/asciidoc )"
 RDEPEND="www-client/midori"
 
 src_compile() {
+	S=$(ls -d $WORKDIR/*/)
+	cd "$S"
 	if use debug; then
-		emake CFLAGS="$CFLAGS -ggdb3 -DDEBUG -O0 -rdynamic"
+		emake CFLAGS="$CFLAGS -ggdb3 -DDEBUG -O0 -rdynamic" || die
 	else
-		emake
+		emake || die
 	fi
-	use doc && emake doc
+	if use doc; then
+		emake doc || die
+	fi
 }
 
 src_install() {
 	emake install DESTDIR="$D"
-	use doc && emake install-doc DESTDIR="$D" DOCDIR="/usr/share/doc/$PF/"
+	if use doc; then
+		emake install-doc DESTDIR="$D" DOCDIR="/usr/share/doc/$PF/" || die
+	fi
 }
 
