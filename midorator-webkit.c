@@ -406,9 +406,25 @@ _MWT midorator_webkit_visible_rect(_MWT rect, _MWT item) {
 	_TEST_NZR(rect);
 	bool go_on = true;
 	_MWT win = midorator_webkit_getframe(item.web_view, item.web_frame);
-	// TODO
+
+	double
+		iw = midorator_webkit_to_number(midorator_webkit_getprop(win, "innerWidth")),
+		ih = midorator_webkit_to_number(midorator_webkit_getprop(win, "innerHeight"));
+	_MWT scrollrect = midorator_webkit_from_value(item, JSObjectMake(item.ctx, NULL, NULL));
+	midorator_webkit_setprop(scrollrect, "left",   midorator_webkit_from_number(scrollrect, 0));
+	midorator_webkit_setprop(scrollrect, "top",    midorator_webkit_from_number(scrollrect, 0));
+	midorator_webkit_setprop(scrollrect, "right",  midorator_webkit_from_number(scrollrect, iw));
+	midorator_webkit_setprop(scrollrect, "width",  midorator_webkit_from_number(scrollrect, iw));
+	midorator_webkit_setprop(scrollrect, "bottom", midorator_webkit_from_number(scrollrect, ih));
+	midorator_webkit_setprop(scrollrect, "height", midorator_webkit_from_number(scrollrect, ih));
+	rect = midorator_webkit_overlap_rects(rect, scrollrect);
+	_TEST_NZR(rect);
+
+	_MWT gcs = midorator_webkit_getprop(win, "getComputedStyle");
 	for (; go_on && midorator_webkit_isok_nz(item); item = midorator_webkit_getprop(item, "parentElement")) {
-		_MWT itemstyle = midorator_webkit_getprop(item, "style");
+		_MWT itemstyle = midorator_webkit_call(gcs, item);
+		if (!midorator_webkit_isok_nz(itemstyle))
+			itemstyle = midorator_webkit_getprop(item, "style");
 
 		char *display = midorator_webkit_to_string(midorator_webkit_getprop(itemstyle, "display"));
 		bool hidden = (display == NULL) || (strcmp(display, "none") == 0);
@@ -421,13 +437,14 @@ _MWT midorator_webkit_visible_rect(_MWT rect, _MWT item) {
 		if (hidden)
 			return midorator_webkit_from_value(rect, NULL);
 
+		// FIXME: overflowX and overflowY may differ
 		char *overflow = midorator_webkit_to_string(midorator_webkit_getprop(itemstyle, "overflow"));
 		bool need_check_overlap = (overflow == NULL) || (strcmp(overflow, "visible") != 0);
 		g_free(overflow);
 
-		char *tagName = midorator_webkit_to_string(midorator_webkit_getprop(item, "tagName"));
+		/*char *tagName = midorator_webkit_to_string(midorator_webkit_getprop(item, "tagName"));
 		need_check_overlap = need_check_overlap && (g_ascii_strcasecmp(tagName, "details"));
-		g_free(tagName);
+		g_free(tagName);*/
 
 		char *position = midorator_webkit_to_string(midorator_webkit_getprop(itemstyle, "position"));
 		go_on = (position != NULL) && (strcmp(position, "absolute") != 0) && (strcmp(position, "fixed") != 0);
@@ -536,9 +553,9 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 		_MWT rect = approved.arr[i];
 		_MWT item = midorator_webkit_getprop(rect, "item");
 		if (hlen == enlen) {
+			midorator_entry(item.web_view, NULL);
 			if (script)
 				midorator_webkit_run_script_args(item, script);
-			midorator_entry(item.web_view, NULL);
 			break;
 		} else {
 			_MWT text = midorator_webkit_from_string(rect, hint + enlen);
