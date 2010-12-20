@@ -4,6 +4,8 @@
 
 #define MIDORATOR_VERSION "0.1"
 
+#include <gtk/gtk.h>
+
 #ifdef DEBUG
 #	include <execinfo.h>
 #	define static_f

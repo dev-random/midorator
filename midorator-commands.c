@@ -5,6 +5,7 @@
 
 #include "midorator-commands.h"
 #include "midorator-history.h"
+#include "midorator-webkit.h"
 
 
 /* This file contains code that executes user commands.
@@ -309,9 +310,9 @@ static gboolean midorator_command_paste(GtkWidget *web_view, const char *cmd, ch
 }
 
 static gboolean midorator_command_yank(GtkWidget *web_view, const char *cmd, char *args[]) {
-	const char *uri = webkit_web_view_get_uri(WEBKIT_WEB_VIEW(web_view));
-	midorator_setclipboard(GDK_SELECTION_PRIMARY, uri);
-	midorator_setclipboard(GDK_SELECTION_CLIPBOARD, uri);
+	const char *text = args[0] ? args[0] : webkit_web_view_get_uri(WEBKIT_WEB_VIEW(web_view));
+	midorator_setclipboard(GDK_SELECTION_PRIMARY, text);
+	midorator_setclipboard(GDK_SELECTION_CLIPBOARD, text);
 	return true;
 }
 
@@ -467,17 +468,39 @@ static gboolean midorator_command_js(GtkWidget *web_view, const char *cmd, char 
 }
 
 static gboolean midorator_command_hint(GtkWidget *web_view, const char *cmd, char *args[]) {
-	if (args[0] && args[0][0]) {
+	if (args[0][0]) {
 		const char *hintchars = midorator_options("option", "hintchars", NULL);
 		if (!hintchars)
 			hintchars = "0123456789";
-		midorator_hints(web_view, hintchars, args[0] + 1, (args[0][0] == 'F') ? "tabnew" : (args[0][0] == 'y') ? "yank" : (args[0][0] == 'b') ? "bgtab" : (args[0][0] == 'm') ? "multitab" : "click");
+
+		char hintitems_n[] = "hint_._items";
+		hintitems_n[5] = args[0][0];
+		const char *hintitems = midorator_options("option", hintitems_n, NULL);
+		if (!hintitems)
+			hintitems = midorator_options("option", "hint_items", NULL);
+		if (!hintitems)
+			hintitems = "a[href], input, select, textarea, button, [onclick]";
+
+		char hintscript_n[] = "hint_._script";
+		hintscript_n[5] = args[0][0];
+		const char *hintscript = midorator_options("option", hintscript_n, NULL);
+		if (!hintscript)
+			hintscript = midorator_options("option", "hint_script", NULL);
+		if (!hintscript)
+			hintscript = "object.focus(); if (object.href) command('open', object.href); else object.click();";
+
+		midorator_webkit_hints(
+				midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)),
+				hintitems,
+				hintchars,
+				args[0] + 1,
+				hintscript);
 	}
 	return true;
 }
 
 static gboolean midorator_command_unhint(GtkWidget *web_view, const char *cmd, char *args[]) {
-	midorator_hints(web_view, NULL, NULL, NULL);
+	midorator_webkit_hints(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)), NULL, NULL, NULL, NULL);
 	return true;
 }
 
@@ -548,7 +571,6 @@ static gboolean midorator_command_killtab(GtkWidget *web_view, const char *cmd, 
 }
 
 static gboolean midorator_command_restart(GtkWidget *web_view, const char *cmd, char *args[]) {
-	// FIXME: this deadlocks when Midori is compiled with libunique
 	atexit(midorator_do_restart);
 	MidoriBrowser *browser = midori_browser_get_for_widget(web_view);
 	midori_browser_quit(browser);
@@ -605,6 +627,19 @@ static gboolean midorator_command_error(GtkWidget *web_view, const char *cmd, ch
 }
 
 
+static gboolean midorator_command_test(GtkWidget *web_view, const char *cmd, char *args[]) {
+	/*_MWAT elems = midorator_webkit_items(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)), args[0], true);
+	size_t i;
+	for (i = 0; i < elems.len; i++) {
+		char *s = midorator_webkit_to_string(elems.arr[i]);
+		midorator_message(web_view, s, NULL, NULL);
+		g_free(s);
+	}
+	midorator_webkit_array_free(elems);*/
+
+	midorator_webkit_run_script_args(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)), args[0]);
+	return true;
+}
 
 
 
@@ -654,7 +689,9 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "unhint", 0, 0, midorator_command_unhint },
 	{ "widget", 3, 3, midorator_command_widget },
 	{ "wq", 0, 0, midorator_command_wq },
-	{ "yank", 0, 0, midorator_command_yank },
+	{ "yank", 0, 1, midorator_command_yank },
+	
+	{ "--test", 1, 1, midorator_command_test },
 
 	{ NULL }
 };

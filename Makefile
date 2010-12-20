@@ -26,7 +26,10 @@ midorator-message.o: midorator-message.c midorator-message.h
 midorator-history.o: midorator-history.c midorator-history.h
 	$(CC) -c $< -Iincludes -o $@ -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 sqlite3 --cflags) $(CFLAGS)
 
-midorator.so: midorator.o midorator-entry.o midorator-history.o midorator-commands.o midorator-message.o
+midorator-webkit.o: midorator-webkit.c midorator-webkit.h
+	$(CC) -c $< -Iincludes -o $@ -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 --cflags) $(CFLAGS)
+
+midorator.so: midorator.o midorator-entry.o midorator-history.o midorator-commands.o midorator-message.o midorator-webkit.o
 	$(CC) $^ -o $@ -fPIC -shared $(shell pkg-config gtk+-2.0 webkit-1.0 sqlite3 --libs) $(LDFLAGS)
 
 default.h: default.config
