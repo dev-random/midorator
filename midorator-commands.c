@@ -236,9 +236,9 @@ static void midorator_parse_argv(unsigned char *line, size_t *o_len, char ***o_a
 		unsigned char *sbeg = line;
 		for (i = 0; i < len; i++) {
 			for (; sbeg[0] <= 32; sbeg++);
-			if (i == len - 1 && i != 0)
-				arr[i] = g_strdup(sbeg);
-			else {
+			if (i == len - 1 && i != 0) {
+				arr[i] = g_strstrip(g_strdup(sbeg));
+			} else {
 				size_t n;
 				for (n = 0; sbeg[n] > 32; n++);
 				arr[i] = g_strndup(sbeg, n);
@@ -633,6 +633,21 @@ static gboolean midorator_command_test(GtkWidget *web_view, const char *cmd, cha
 	return true;
 }
 
+static gboolean midorator_command_shellquote(GtkWidget *web_view, const char *cmd, char *args[]) {
+	GError *e = NULL;
+	char **argv;
+	gint argc;
+	g_shell_parse_argv(args[0], &argc, &argv, &e);
+	if (e) {
+		midorator_error(web_view, "%s", e->message);
+		g_error_free(e);
+		return false;
+	}
+	gboolean ret = midorator_process_command_v(web_view, argv, argc);
+	g_strfreev(argv);
+	return ret;
+}
+
 
 
 
@@ -648,6 +663,7 @@ typedef struct midorator_builtin {
 } midorator_builtin;
 
 midorator_builtin midorator_commands_builtin[] = {
+	{ "$", 1, 1, midorator_command_shellquote },
 	{ "action", 1, 1, midorator_command_action },
 	{ "actions", 0, 0, midorator_command_actions },
 	{ "alias", 2, 1024, midorator_command_alias },
