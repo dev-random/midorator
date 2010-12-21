@@ -441,10 +441,10 @@ static gboolean midorator_command_source(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-/*static gboolean midorator_command_submit(GtkWidget *web_view, const char *cmd, char *args[]) {
-	midorator_submit_form(web_view);
+static gboolean midorator_command_submit(GtkWidget *web_view, const char *cmd, char *args[]) {
+	midorator_webkit_submit_form(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)));
 	return true;
-}*/
+}
 
 static gboolean midorator_command_wq(GtkWidget *web_view, const char *cmd, char *args[]) {
 	// TODO: force saving
@@ -674,7 +674,7 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "set", 2, 2, midorator_command_set },
 	{ "source", 1, 1, midorator_command_source },
 	{ "source!", 1, 1, midorator_command_source },
-//	{ "submit", 0, 0, midorator_command_submit },
+	{ "submit", 0, 0, midorator_command_submit },
 	{ "tabnew!", 0, 1024, midorator_command_tabnew },
 	{ "tabnew", 0, 1024, midorator_command_tabnew },
 	{ "tabpaste", 0, 0, midorator_command_paste },
@@ -707,7 +707,6 @@ gboolean __midorator_process_command(GtkWidget *web_view, const char *fmt, ...) 
 		va_start(l, fmt);
 		char *line = g_strdup_vprintf(fmt, l);
 		va_end(l);
-		GError *err = NULL;
 		midorator_parse_argv(line, &cmdlen, &cmd, -1);
 		size_t maxlen = midorator_command_get_maxlen(cmd[0]);
 		if (cmdlen - 1 > maxlen) {

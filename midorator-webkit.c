@@ -236,6 +236,52 @@ _MWAT midorator_webkit_items(_MWT obj, const char *selector, bool subframes) {
 
 
 
+void midorator_webkit_submit_form(_MWT item_or_root) {
+	if (!midorator_webkit_isok_nz(item_or_root))
+		return;
+	_MWT form = midorator_webkit_getprop(item_or_root, "form");
+	if (!midorator_webkit_isok_nz(form)) {
+		_MWT doc = midorator_webkit_getprop(item_or_root, "document");
+		if (!midorator_webkit_isok_nz(doc)) {
+			if (doc.error[0])
+				midorator_error(GTK_WIDGET(doc.web_view), doc.error);
+			return;
+		}
+		_MWT ae = midorator_webkit_getprop(doc, "activeElement");
+		if (!midorator_webkit_isok_nz(ae)) {
+			item_or_root = midorator_webkit_getframe(ae.web_view, webkit_web_view_get_focused_frame(ae.web_view));
+			doc = midorator_webkit_getprop(item_or_root, "document");
+			ae = midorator_webkit_getprop(doc, "activeElement");
+			if (!midorator_webkit_isok_nz(ae)) {
+				if (ae.error[0])
+					midorator_error(GTK_WIDGET(ae.web_view), ae.error);
+				return;
+			}
+		}
+		item_or_root = ae;
+		form = midorator_webkit_getprop(item_or_root, "form");
+	}
+	_MWT item = item_or_root;
+	_MWT root = midorator_webkit_getframe(item.web_view, item.web_frame);
+
+	char *type = midorator_webkit_to_string(midorator_webkit_getprop(item, "type"));
+	bool button = type && strcmp(type, "submit") == 0;
+	g_free(type);
+
+	if (button) {
+		_MWT click = midorator_webkit_getprop(item, "click");
+		midorator_webkit_call(click);
+	} else {
+		// "form.submit" is often overrided by "<button id='submit' ... >"
+		// so we get "form.__proto__.submit"
+		_MWT proto = midorator_webkit_getprop(form, "__proto__");
+		_MWT submit = midorator_webkit_getprop(proto, "submit");
+		submit._this = proto._this;
+		midorator_webkit_call(submit);
+	}
+}
+
+
 
 
 
@@ -387,6 +433,7 @@ void midorator_webkit_go(_MWT root, const char *direction) {
 	GRegex *re = g_regex_new(direction, G_REGEX_CASELESS | G_REGEX_DOTALL | G_REGEX_EXTENDED | G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY, &e);
 	if (e) {
 		midorator_error(GTK_WIDGET(root.web_view), "Regular expression in config file: %s", e->message);
+		g_error_free(e);
 		return;
 	}
 
