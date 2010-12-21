@@ -46,6 +46,16 @@ logextra("%p: %s", iter, gtk_widget_get_name(iter)); \
 
 
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name);
+GtkWidget *midori_view_from_web_view(GtkWidget *web_view);
+const char* midorator_options(const char *group, const char *name, const char *value);
+char ** midorator_options_keylist(const char *group);
+void midorator_setclipboard(GdkAtom atom, const char *str);
+char* midorator_getclipboard(GdkAtom atom);
+void midorator_error(GtkWidget *web_view, char *fmt, ...);
+char midorator_mode(GtkWidget* web_view, unsigned char mode);
+GtkWidget *midorator_entry(GtkWidget* web_view, const char *text);
+void midorator_search(GtkWidget* web_view, const char *match, gboolean forward, gboolean remember);
+void midorator_message(GtkWidget* web_view, const char *message, const char *bg, const char *fg);
 
 
 #endif

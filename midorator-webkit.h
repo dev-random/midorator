@@ -41,6 +41,8 @@ _MWT _midorator_webkit_call(_MWT obj, ...);
 _MWAT midorator_webkit_items(_MWT obj, const char *selector, bool subframes);
 _MWAT midorator_webkit_get_subframes(_MWT _frame, bool tree);
 
+void midorator_webkit_go(_MWT root, const char *direction);
+
 void midorator_webkit_add_view(WebKitWebView *web_view);
 void midorator_webkit_remove_view(WebKitWebView *web_view);
 

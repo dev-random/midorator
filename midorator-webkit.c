@@ -306,12 +306,12 @@ void midorator_webkit_run_script_argv(_MWT obj, const char *script, const char *
 		argv = &tmp;
 	_MWT win = midorator_webkit_getframe(obj.web_view, obj.web_frame);
 	if (win.error[0]) {
-		midorator_error(win.web_view, "%s", win.error);
+		midorator_error(GTK_WIDGET(win.web_view), "%s", win.error);
 		return;
 	}
 	_MWT arr_c = midorator_webkit_getprop(win, "Array");
 	if (arr_c.error[0]) {
-		midorator_error(arr_c.web_view, "%s", arr_c.error);
+		midorator_error(GTK_WIDGET(arr_c.web_view), "%s", arr_c.error);
 		return;
 	}
 	int argc;
@@ -328,7 +328,7 @@ void midorator_webkit_run_script_argv(_MWT obj, const char *script, const char *
 	_MWT callargs[] = { arr, cb, obj };
 	_MWT ret = midorator_webkit_vcall(fn, 3, callargs);
 	if (ret.error[0])
-		midorator_error(ret.web_view, "%s", ret.error);
+		midorator_error(GTK_WIDGET(ret.web_view), "%s", ret.error);
 }
 
 void _midorator_webkit_run_script_args(_MWT obj, const char *script, ...) {
@@ -355,6 +355,61 @@ void midorator_webkit_run_script_printf(_MWT obj, const char *fmt, ...) {
 }
 
 
+
+
+
+
+
+
+
+void midorator_webkit_go(_MWT root, const char *direction) {
+	char *selector = g_strdup_printf("link[href][rel=\"%1$s\"], a[href][rel=\"%1$s\"]", direction);
+	_MWAT links = midorator_webkit_items(root, selector, true);
+	g_free(selector);
+
+	if (links.len) {
+		char *href = midorator_webkit_to_string(midorator_webkit_getprop(links.arr[0], "href"));
+		midorator_webkit_array_free(links);
+		midorator_process_command(GTK_WIDGET(root.web_view), NULL, "open", href);
+		g_free(href);
+		return;
+	}
+
+	midorator_webkit_array_free(links);
+
+	char *o = g_strconcat("go_", direction, NULL);
+	direction = midorator_options("option", o, NULL);
+	g_free(o);
+	if (!direction)
+		return;
+
+	GError *e = NULL;
+	GRegex *re = g_regex_new(direction, G_REGEX_CASELESS | G_REGEX_DOTALL | G_REGEX_EXTENDED | G_REGEX_OPTIMIZE, G_REGEX_MATCH_NOTEMPTY, &e);
+	if (e) {
+		midorator_error(GTK_WIDGET(root.web_view), "Regular expression in config file: %s", e->message);
+		return;
+	}
+
+	links = midorator_webkit_items(root, "a[href]", true);
+
+	size_t i;
+	for (i = 0; i < links.len; i++) {
+		char *text = midorator_webkit_to_string(midorator_webkit_getprop(links.arr[i], "innerText"));
+		if (g_regex_match(re, text, 0, NULL)) {
+			g_free(text);
+			g_regex_unref(re);
+			char *href = midorator_webkit_to_string(midorator_webkit_getprop(links.arr[i], "href"));
+			midorator_webkit_array_free(links);
+			midorator_process_command(GTK_WIDGET(root.web_view), NULL, "open", href);
+			g_free(href);
+			return;
+		}
+		g_free(text);
+	}
+
+	midorator_webkit_array_free(links);
+	g_regex_unref(re);
+}
 
 
 
@@ -488,13 +543,13 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 		hintchars = "0123456789";
 	}
 	if (strspn(entered, hintchars) != strlen(entered)) {
-		midorator_error(root.web_view, "Entered invalid hint character");
+		midorator_error(GTK_WIDGET(root.web_view), "Entered invalid hint character");
 		return;
 	}
 
 	_MWAT items = midorator_webkit_items(root, selector, true);
 	if (items.error[0]) {
-		midorator_error(items.web_view, "%s", items.error);
+		midorator_error(GTK_WIDGET(items.web_view), "%s", items.error);
 		return;
 	}
 	_MWAT approved = items;
@@ -506,7 +561,7 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 		_MWT gcr = midorator_webkit_getprop(item, "getClientRects");
 		_MWT rects = midorator_webkit_call(gcr);
 		if (rects.error[0]) {
-			midorator_error(rects.web_view, "%s", rects.error);
+			midorator_error(GTK_WIDGET(rects.web_view), "%s", rects.error);
 			continue;
 		}
 		size_t rectcount = (size_t)midorator_webkit_to_number(midorator_webkit_getprop(rects, "length"));
@@ -526,7 +581,7 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 	midorator_webkit_array_free(items);
 
 	if (!approved.len) {
-		midorator_error(approved.web_view, "No selectable elements found");
+		midorator_error(GTK_WIDGET(approved.web_view), "No selectable elements found");
 		midorator_webkit_array_free(approved);
 		return;
 	}
@@ -553,7 +608,7 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 		_MWT rect = approved.arr[i];
 		_MWT item = midorator_webkit_getprop(rect, "item");
 		if (hlen == enlen) {
-			midorator_entry(item.web_view, NULL);
+			midorator_entry(GTK_WIDGET(item.web_view), NULL);
 			if (script)
 				midorator_webkit_run_script_args(item, script);
 			break;
@@ -565,7 +620,7 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 			_MWT style = midorator_webkit_getprop(hint, "style");
 			if (!midorator_webkit_isok_nz(style)) {
 				if (style.error[0])
-					midorator_error(approved.web_view, style.error);
+					midorator_error(GTK_WIDGET(approved.web_view), style.error);
 				break;
 			}
 
@@ -573,7 +628,7 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 			_MWT ac = midorator_webkit_getprop(body, "appendChild");
 			if (!midorator_webkit_isok_nz(ac)) {
 				if (ac.error[0])
-					midorator_error(approved.web_view, ac.error);
+					midorator_error(GTK_WIDGET(approved.web_view), ac.error);
 				break;
 			}
 

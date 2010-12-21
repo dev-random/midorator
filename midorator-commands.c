@@ -6,6 +6,7 @@
 #include "midorator-commands.h"
 #include "midorator-history.h"
 #include "midorator-webkit.h"
+#include "midorator.h"
 
 
 /* This file contains code that executes user commands.
@@ -13,14 +14,6 @@
  */
 
 
-
-// Prototypes of some functions from midorator.c
-GtkWidget *midori_view_from_web_view(GtkWidget *web_view);
-GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name);
-const char* midorator_options(const char *group, const char *name, const char *value);
-char ** midorator_options_keylist(const char *group);
-void midorator_setclipboard(GdkAtom atom, const char *str);
-char* midorator_getclipboard(GdkAtom atom);
 
 
 // Find a widget by its name ('widget') and set (or get) its property 'name'.
@@ -448,10 +441,10 @@ static gboolean midorator_command_source(GtkWidget *web_view, const char *cmd, c
 	return true;
 }
 
-static gboolean midorator_command_submit(GtkWidget *web_view, const char *cmd, char *args[]) {
+/*static gboolean midorator_command_submit(GtkWidget *web_view, const char *cmd, char *args[]) {
 	midorator_submit_form(web_view);
 	return true;
-}
+}*/
 
 static gboolean midorator_command_wq(GtkWidget *web_view, const char *cmd, char *args[]) {
 	// TODO: force saving
@@ -463,7 +456,7 @@ static gboolean midorator_command_wq(GtkWidget *web_view, const char *cmd, char 
 }
 
 static gboolean midorator_command_js(GtkWidget *web_view, const char *cmd, char *args[]) {
-	midorator_execute_user_script(web_view, args[0]);
+	midorator_webkit_run_script_args(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)), args[0]);
 	return true;
 }
 
@@ -513,13 +506,12 @@ static gboolean midorator_command_reload(GtkWidget *web_view, const char *cmd, c
 }
 
 static gboolean midorator_command_go(GtkWidget *web_view, const char *cmd, char *args[]) {
-	if (strcmp(args[0], "back") == 0) {
+	if (strcmp(args[0], "back") == 0)
 		webkit_web_view_go_back(WEBKIT_WEB_VIEW(web_view));
-	} else if (strcmp(args[0], "forth") == 0) {
+	else if (strcmp(args[0], "forth") == 0)
 		webkit_web_view_go_forward(WEBKIT_WEB_VIEW(web_view));
-	} else {
-		midorator_go(web_view, args[0]);
-	}
+	else
+		midorator_webkit_go(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)), args[0]);
 	return true;
 }
 
@@ -682,7 +674,7 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "set", 2, 2, midorator_command_set },
 	{ "source", 1, 1, midorator_command_source },
 	{ "source!", 1, 1, midorator_command_source },
-	{ "submit", 0, 0, midorator_command_submit },
+//	{ "submit", 0, 0, midorator_command_submit },
 	{ "tabnew!", 0, 1024, midorator_command_tabnew },
 	{ "tabnew", 0, 1024, midorator_command_tabnew },
 	{ "tabpaste", 0, 0, midorator_command_paste },
@@ -773,7 +765,7 @@ gboolean midorator_process_command_v(GtkWidget *web_view, char **cmd, size_t cmd
 		}
 	const char *js = midorator_options("jscmd", command, NULL);
 	if (js) {
-		midorator_jscmd(web_view, js, args, cmdlen - 1);
+		midorator_webkit_run_script_argv(midorator_webkit_getroot(WEBKIT_WEB_VIEW(web_view)), js, (const char**)args);
 		return true;
 	} else {
 		midorator_error(web_view, "Invalid command: '%s'", command);
