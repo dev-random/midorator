@@ -17,12 +17,13 @@ _MWT midorator_webkit_error(_MWT issuer, const char *fmt, ...) {
 }
 
 _MWT midorator_webkit_jserror(_MWT issuer, JSValueRef err) {
-	JSStringRef str = JSValueToStringCopy(issuer.ctx, err, NULL);
-	if (!str)
+	JSValueRef exc = NULL;
+	JSStringRef str = JSValueToStringCopy(issuer.ctx, err, &exc);
+	if (exc || !str)
 		return midorator_webkit_error(issuer, "Unknown JS error");
 	const char *pre = "JS error: ";
 	strcpy(issuer.error, pre);
-	JSStringGetUTF8CString(str, issuer.error + strlen(pre), sizeof(issuer.error) - strlen(pre));
+	JSStringGetUTF8CString(str, issuer.error + strlen(pre), sizeof(issuer.error) - strlen(pre) - 1);
 	issuer.error[sizeof(issuer.error) - 1] = 0;
 	JSStringRelease(str);
 	return issuer;
@@ -87,6 +88,11 @@ double midorator_webkit_to_number(_MWT val) {
 _MWT midorator_webkit_from_value(_MWT base, JSValueRef val) {
 	base.elem = val;
 	base._this = JSContextGetGlobalObject(base.ctx);
+	return base;
+}
+
+_MWT midorator_webkit_from_boolean(_MWT base, gboolean b) {
+	base.elem = JSValueMakeBoolean(base.ctx, b);
 	return base;
 }
 
@@ -324,6 +330,39 @@ static _MWT midorator_webkit_make_callback(_MWT _frame, JSObjectCallAsFunctionCa
 	char buf[256];
 	sprintf(buf, "%p", _frame.web_frame);
 	midorator_webkit_setprop(ret, "web_frame", midorator_webkit_from_string(_frame, buf));
+	return ret;
+}
+
+static JSValueRef midorator_webkit_metacb(JSContextRef ctx, JSObjectRef func, JSObjectRef _this, size_t argc, const JSValueRef arguments[], JSValueRef* ex) {
+	_MWT _frame = midorator_webkit_cmd_to_frame(ctx, func);
+	_MWT xfunc = midorator_webkit_from_value(_frame, func);
+
+	char *strptr = midorator_webkit_to_string(midorator_webkit_getprop(xfunc, "callback"));
+	_MWT (*callback) (_MWT _frame, _MWT func, _MWT _this, _MWT args);
+	sscanf(strptr, "%p", &callback);
+	g_free(strptr);
+
+	_MWT xthis = midorator_webkit_from_value(_frame, _this);
+	_MWT mkarr = midorator_webkit_getprop(_frame, "Array");
+	
+	_MWT *argv = g_new0(_MWT, argc);
+	size_t i;
+	for (i = 0; i < argc; i++)
+		argv[i] = midorator_webkit_from_value(_frame, arguments[i]);
+
+	_MWT arr = midorator_webkit_vcall(mkarr, argc, argv);
+	g_free(argv);
+
+	_MWT ret = callback(_frame, xfunc, xthis, arr);
+
+	return ret.elem;
+}
+
+_MWT midorator_webkit_from_callback(_MWT _frame, _MWT (*callback) (_MWT _frame, _MWT func, _MWT _this, _MWT args)) {
+	_MWT ret = midorator_webkit_make_callback(_frame, midorator_webkit_metacb);
+	char buf[256];
+	sprintf(buf, "%p", callback);
+	midorator_webkit_setprop(ret, "callback", midorator_webkit_from_string(_frame, buf));
 	return ret;
 }
 

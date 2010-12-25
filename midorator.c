@@ -20,6 +20,7 @@
 #include "midorator-commands.h"
 #include "midorator-message.h"
 #include "midorator-webkit.h"
+#include "midorator-hooks.h"
 
 
 
@@ -711,6 +712,7 @@ static_f void midorator_paste_clipboard_cb(WebKitWebView* web_view) {
 static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, MidoriExtension* extension) {
 	GtkWidget* web_view = midori_view_get_web_view (view);
 	midorator_webkit_add_view(WEBKIT_WEB_VIEW(web_view));
+	midorator_hooks_add_view(WEBKIT_WEB_VIEW(web_view));
 
 	g_signal_connect (web_view, "key-press-event",
 		G_CALLBACK (midorator_key_press_event_cb), browser);

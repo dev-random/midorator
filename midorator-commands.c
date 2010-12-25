@@ -5,6 +5,7 @@
 
 #include "midorator-commands.h"
 #include "midorator-history.h"
+#include "midorator-hooks.h"
 #include "midorator-webkit.h"
 #include "midorator.h"
 
@@ -33,7 +34,8 @@ static char* midorator_set_get_prop(GtkWidget *web_view, const char *widget, con
 	GParamSpec *sp = g_object_class_find_property(G_OBJECT_GET_CLASS(w), name);
 	if (!sp) {
 		p = gtk_widget_get_parent(w);
-		sp = gtk_container_class_find_child_property(G_OBJECT_GET_CLASS(p), name);
+		if (p)
+			sp = gtk_container_class_find_child_property(G_OBJECT_GET_CLASS(p), name);
 	}
 	if (!sp) {
 		midorator_error(web_view, "Property for widget '%s' not found: %s", widget, name);
@@ -648,6 +650,20 @@ static gboolean midorator_command_shellquote(GtkWidget *web_view, const char *cm
 	return ret;
 }
 
+static gboolean midorator_command_hook(GtkWidget *web_view, const char *cmd, char *args[]) {
+	midorator_hooks_add(args[0], args[1]);
+	return true;
+}
+
+static gboolean midorator_command_css(GtkWidget *web_view, const char *cmd, char *args[]) {
+	char *esc = g_strescape(args[0], "");
+	char *code = g_strdup_printf("var s = document.createElement('style'); s.type = 'text/css'; s.innerHTML = \"%s\"; document.head.appendChild(s)", esc);
+	g_free(esc);
+	midorator_hooks_add("earlyload", code);
+	g_free(code);
+	return true;
+}
+
 
 
 
@@ -670,11 +686,13 @@ midorator_builtin midorator_commands_builtin[] = {
 	{ "bookmark", 2, 2, midorator_command_set },
 	{ "cmdmap", 2, 2, midorator_command_cmdmap },
 	{ "cmdnmap", 2, 2, midorator_command_cmdmap },
+	{ "css", 1, 1, midorator_command_css },
 	{ "entry", 1, 1, midorator_command_entry },
 	{ "error", 1, 1, midorator_command_error },
 	{ "get", 1, 1024, midorator_command_get },
 	{ "go", 1, 1, midorator_command_go },
 	{ "hint", 1, 1, midorator_command_hint },
+	{ "hook", 2, 2, midorator_command_hook },
 	{ "insert", 0, 1, midorator_command_insert },
 	{ "js", 1, 1, midorator_command_js },
 	{ "jscmd", 2, 2, midorator_command_set },
@@ -793,7 +811,7 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 		return NULL;
 	if (arglen < 0)
 		for (arglen = 0; args[arglen]; arglen++);
-	if (strcmp(args[0], "widget") == 0) {
+	if (strcmp(args[0], "widget") == 0 || strcmp(args[0], "property") == 0) {
 		if (arglen == 1)
 			return NULL;
 		else if (arglen == 2) {
@@ -825,6 +843,27 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 			return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
 	} else if (strcmp(args[0], "option") == 0) {
 		return g_strdup(midorator_options(arglen > 2 ? args[1] : "option", arglen > 2 ? args[2] : args[1], NULL));
+	} else if (strcmp(args[0], "jscmd") == 0) {
+		return g_strdup(midorator_options(arglen > 2 ? args[1] : "jscmd", arglen > 2 ? args[2] : args[1], NULL));
+	} else if (strcmp(args[0], "prophelp") == 0) {
+		if (arglen != 3)
+			return NULL;
+		GType t = 0;
+		GtkWidget *w = midorator_findwidget(web_view, args[1]);
+		if (w)
+			t = G_OBJECT_TYPE(w);
+		else
+			t = g_type_from_name(args[1]);
+		if (!t || !G_TYPE_IS_CLASSED(t))
+			return NULL;
+		char *ret = g_strdup("");
+		GObject *o = g_object_new(t, NULL);
+		GObjectClass *c = G_OBJECT_GET_CLASS(o);
+		GParamSpec *prop = g_object_class_find_property(c, args[2]);
+		g_object_unref(o);
+		if (!prop)
+			return NULL;
+		return g_strdup(g_param_spec_get_blurb(prop));
 	} else if (strcmp(args[0], "signals") == 0 && args[1]) {
 		GType t = 0;
 		GtkWidget *w = midorator_findwidget(web_view, args[1]);

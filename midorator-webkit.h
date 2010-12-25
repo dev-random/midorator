@@ -28,10 +28,13 @@ _MWT midorator_webkit_getframe(WebKitWebView *web_view, WebKitWebFrame *web_fram
 _MWT midorator_webkit_getroot(WebKitWebView *web_view);
 _MWT midorator_webkit_from_string(_MWT base, const char *str);
 _MWT midorator_webkit_from_number(_MWT base, double number);
+_MWT midorator_webkit_from_boolean(_MWT base, gboolean b);
+_MWT midorator_webkit_from_callback(_MWT _frame, _MWT (*callback) (_MWT _frame, _MWT func, _MWT _this, _MWT args));
 char *midorator_webkit_to_string(_MWT val);
 double midorator_webkit_to_number(_MWT val);
 _MWT midorator_webkit_from_value(_MWT base, JSValueRef val);
 _MWT midorator_webkit_getprop(_MWT val, const char *name);
+_MWT midorator_webkit_setprop(_MWT obj, const char *name, _MWT val);
 _MWT midorator_webkit_getarray(_MWT val, size_t index);
 _MWAT midorator_webkit_unpack(_MWT arr);
 void midorator_webkit_array_free(_MWAT arr);
