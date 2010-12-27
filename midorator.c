@@ -327,7 +327,8 @@ static_f void midorator_entry_cancel_cb (GtkEntry* e) {
 	GtkWidget* web_view = NULL;
 	g_object_get(e, "current-browser", &web_view, NULL);
 	midorator_current_view(&web_view);
-	gtk_widget_grab_focus(web_view);
+	if (!gtk_widget_is_focus(web_view))
+		gtk_widget_grab_focus(web_view);
 	midorator_process_command(web_view, "unhint");
 }
 
@@ -335,7 +336,8 @@ static_f void midorator_entry_execute_cb (GtkEntry* e, const char *t) {
 	GtkWidget* web_view = NULL;
 	g_object_get(e, "current-browser", &web_view, NULL);
 	midorator_current_view(&web_view);
-	gtk_widget_grab_focus(web_view);
+	if (!gtk_widget_is_focus(web_view))
+		gtk_widget_grab_focus(web_view);
 	if (t[0] == ':')
 		midorator_process_command(web_view, "%s", t + 1);
 	else if (t[0] == ';' && t[1])
@@ -549,7 +551,8 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	logextra("%i", event->keyval);
 	midorator_message(web_view, NULL, NULL, NULL);
 	midorator_current_view(&web_view);
-	gtk_widget_grab_focus(web_view);
+	if (!gtk_widget_is_focus(web_view))
+		gtk_widget_grab_focus(web_view);
 
 	char mode = midorator_mode(web_view, 0);
 	if (mode == 'i') {
@@ -637,33 +640,12 @@ static_f gboolean midorator_key_press_event_cb (GtkWidget* web_view, GdkEventKey
 	}
 }
 
-static_f void midorator_context_ready_cb (WebKitWebView* web_view, WebKitWebFrame* web_frame, JSContextRef js_context, JSObjectRef js_window, MidoriExtension* extension) {
-	midorator_process_command(GTK_WIDGET(web_view), "js_hook_pageload");
-	// TODO: normal hooks
-}
-
-static_f void midorator_notify_uri_cb (WebKitWebView* web_view) {
-//	if (midorator_is_current_view(GTK_WIDGET(web_view)))
-//		midorator_process_command(web_view, NULL, "js_fix_mode");
-}
-
-static_f void midorator_loaded_cb (WebKitWebView *web_view, WebKitWebFrame *web_frame, gpointer ud) {
-	if (midorator_is_current_view(GTK_WIDGET(web_view)) &&
-			webkit_web_view_get_focused_frame(web_view) == web_frame &&
-			midorator_string_to_bool(midorator_options("option", "auto_switch_mode", NULL)))
-		midorator_process_command(GTK_WIDGET(web_view), NULL, "js_fix_mode");
-}
-
 static_f void midorator_del_tab_cb (MidoriView* view, MidoriBrowser* browser) {
 	GtkWidget* web_view = midori_view_get_web_view (view);
 	midorator_webkit_remove_view(WEBKIT_WEB_VIEW(web_view));
 
 	g_signal_handlers_disconnect_by_func (
 		web_view, midorator_key_press_event_cb, browser);
-	g_signal_handlers_disconnect_by_func (
-		web_view, midorator_context_ready_cb, extension);
-	g_signal_handlers_disconnect_by_func (
-		web_view, midorator_loaded_cb, NULL);
 }
 
 static_f void midorator_default_config (GtkWidget* web_view) {
@@ -716,14 +698,8 @@ static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, Mi
 
 	g_signal_connect (web_view, "key-press-event",
 		G_CALLBACK (midorator_key_press_event_cb), browser);
-	g_signal_connect (web_view, "window-object-cleared",
-		G_CALLBACK (midorator_context_ready_cb), extension);
-	g_signal_connect (web_view, "document-load-finished",
-		G_CALLBACK (midorator_loaded_cb), NULL);
 	g_signal_connect (web_view, "paste-clipboard",
 		G_CALLBACK (midorator_paste_clipboard_cb), browser);
-	g_signal_connect (web_view, "notify::uri",
-		G_CALLBACK (midorator_notify_uri_cb), NULL);
 	
 	GtkWidget *w = midorator_findwidget(GTK_WIDGET(browser), "MidoriLocationEntry");
 	GtkEditable *entry;
@@ -770,20 +746,6 @@ static_f void midorator_del_browser_cb (MidoriExtension* extension, MidoriBrowse
 		(GtkCallback)midorator_del_tab_cb, extension);
 }
 
-static_f void midorator_tab_switched_cb (MidoriBrowser* browser) {
-	GtkWidget* w;
-	midorator_findwidget_macro(GTK_WIDGET(browser), w, GTK_IS_NOTEBOOK(w));
-	if (!w)
-		return;
-	w = gtk_notebook_get_nth_page(GTK_NOTEBOOK(w), gtk_notebook_get_current_page(GTK_NOTEBOOK(w)));
-	if (!w)
-		return;
-	midorator_findwidget_macro(w, w, WEBKIT_IS_WEB_VIEW(w));
-	if (!w)
-		return;
-	midorator_process_command(w, "js_fix_mode");
-}
-
 static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, MidoriExtension* extension) {
 	g_object_set_data(G_OBJECT(browser), "midori-app", app);
 	midori_browser_foreach (browser,
@@ -792,8 +754,6 @@ static_f void midorator_add_browser_cb (MidoriApp* app, MidoriBrowser* browser, 
 		G_CALLBACK (midorator_add_tab_cb), extension);
 	g_signal_connect (extension, "deactivate",
 		G_CALLBACK (midorator_del_browser_cb), browser);
-	g_signal_connect (browser, "notify::tab",
-		G_CALLBACK (midorator_tab_switched_cb), extension);
 }
 
 static_f void midorator_activate_cb (MidoriExtension* extension, MidoriApp* app) {

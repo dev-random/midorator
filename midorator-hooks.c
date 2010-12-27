@@ -84,9 +84,17 @@ static void midorator_hooks_window_object_cleared_cb(WebKitWebView *web_view, We
 	midorator_hooks_earlyload_cb(root, root, root, root);
 }
 
+static void midorator_hooks_focus_cb(WebKitWebView *web_view) {
+	WebKitWebFrame *web_frame = webkit_web_view_get_focused_frame(web_view);
+	_MWT root = midorator_webkit_getframe(web_view, web_frame);
+	midorator_hooks_call(root, "tabfocus");
+}
+
 void midorator_hooks_add_view(WebKitWebView *web_view) {
 	g_signal_connect (web_view, "window-object-cleared",
 		G_CALLBACK (midorator_hooks_window_object_cleared_cb), NULL);
+	g_signal_connect (web_view, "grab-focus",
+		G_CALLBACK (midorator_hooks_focus_cb), NULL);
 
 	/* // This signal is absent on some versions of WebKitGTK, so we need some workaround instead
 	g_signal_connect (web_view, "onload-event",

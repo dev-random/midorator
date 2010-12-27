@@ -196,14 +196,14 @@ static void midorator_entry_execute_default_cb(MidoratorEntry* e, const char* st
 	(void)str;
 	gtk_entry_set_text(GTK_ENTRY(e), "");
 	gtk_widget_hide(GTK_WIDGET(e));
-	if (e->current_browser)
+	if (e->current_browser && !gtk_widget_is_focus(e->current_browser))
 		gtk_widget_grab_focus(e->current_browser);
 }
 
 static void midorator_entry_cancel_default_cb(MidoratorEntry* e) {
 	gtk_entry_set_text(GTK_ENTRY(e), "");
 	gtk_widget_hide(GTK_WIDGET(e));
-	if (e->current_browser)
+	if (e->current_browser && !gtk_widget_is_focus(e->current_browser))
 		gtk_widget_grab_focus(e->current_browser);
 }
 
@@ -296,7 +296,8 @@ static gboolean midorator_entry_is_visible(MidoratorEntry* e) {
 static gboolean midorator_entry_restore_focus(MidoratorEntry* e) {
 	if (midorator_entry_is_visible(e)) {
 		int p = gtk_editable_get_position(GTK_EDITABLE(e));
-		gtk_widget_grab_focus(GTK_WIDGET(e));
+		if (!gtk_widget_is_focus(GTK_WIDGET(e)))
+			gtk_widget_grab_focus(GTK_WIDGET(e));
 		gtk_editable_set_position(GTK_EDITABLE(e), p);
 	}
 	return false;
@@ -305,7 +306,8 @@ static gboolean midorator_entry_restore_focus(MidoratorEntry* e) {
 static void midorator_entry_edited_cb(MidoratorEntry* e) {
 	if (!midorator_entry_is_visible(e)) {
 		gtk_widget_show(GTK_WIDGET(e));
-		gtk_widget_grab_focus(GTK_WIDGET(e));
+		if (!gtk_widget_is_focus(GTK_WIDGET(e)))
+			gtk_widget_grab_focus(GTK_WIDGET(e));
 	}
 	char *t = g_strdup(gtk_entry_get_text(GTK_ENTRY(e)));
 	if (t && t[0]) {
@@ -478,7 +480,8 @@ MidoratorEntry* midorator_entry_new(GtkWidget *parent) {
 	if (GTK_IS_BOX(parent)) {
 		gtk_box_pack_start(GTK_BOX(parent), e, true, true, 0);
 		gtk_widget_show(e);
-		gtk_widget_grab_focus(e);
+		if (!gtk_widget_is_focus(GTK_WIDGET(e)))
+			gtk_widget_grab_focus(e);
 		gtk_box_reorder_child(GTK_BOX(parent), e, 0);
 	} else if (GTK_IS_CONTAINER(parent)) {
 		gtk_container_add(GTK_CONTAINER(parent), e);

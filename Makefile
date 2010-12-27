@@ -38,8 +38,8 @@ midorator.so: midorator.o midorator-entry.o midorator-history.o midorator-comman
 default.h: default.config
 	sed 's/["\\]/\\&/g;s/.*/\t"&",/' default.config > default.h
 
-debug:
-	$(MAKE) CFLAGS='-ggdb3 -DDEBUG -O0 -rdynamic' midorator.so
+debug: clean
+	$(MAKE) CFLAGS='-ggdb3 -DDEBUG -O0 -rdynamic -Wimplicit -Werror' midorator.so
 
 doc: README.html midorator.7
 
