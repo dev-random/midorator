@@ -65,10 +65,15 @@ static _MWT midorator_hooks_earlyload_cb(_MWT root, _MWT func, _MWT _this, _MWT 
 	midorator_webkit_setprop(st, "innerHTML", midorator_webkit_from_string(ce, css));
 	g_free(css);
 	_MWT head = midorator_webkit_getprop(doc, "head");
-	_MWT ac = midorator_webkit_getprop(head, "appendChild");
-	_MWT ret = midorator_webkit_call(ac, st);
-	if (ret.error[0])
-		midorator_error(GTK_WIDGET(root.web_view), ret.error);
+	if (head.error[0])
+		midorator_error(GTK_WIDGET(root.web_view), head.error);
+
+	if (midorator_webkit_isok_nz(head)) {
+		_MWT ac = midorator_webkit_getprop(head, "appendChild");
+		_MWT ret = midorator_webkit_call(ac, st);
+		if (ret.error[0])
+			midorator_error(GTK_WIDGET(root.web_view), ret.error);
+	}
 
 	midorator_hooks_call(root, "earlyload");
 

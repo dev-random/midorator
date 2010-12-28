@@ -657,7 +657,7 @@ static gboolean midorator_command_hook(GtkWidget *web_view, const char *cmd, cha
 
 static gboolean midorator_command_css(GtkWidget *web_view, const char *cmd, char *args[]) {
 	char *esc = g_strescape(args[0], "");
-	char *code = g_strdup_printf("var s = document.createElement('style'); s.type = 'text/css'; s.innerHTML = \"%s\"; document.head.appendChild(s)", esc);
+	char *code = g_strdup_printf("if (document.head) { var s = document.createElement('style'); s.type = 'text/css'; s.innerHTML = \"%s\"; document.head.appendChild(s) }", esc);
 	g_free(esc);
 	midorator_hooks_add("earlyload", code);
 	g_free(code);
