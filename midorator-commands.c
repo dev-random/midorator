@@ -832,6 +832,13 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 			return ret;
 		} else
 			return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
+	} else if (strcmp(args[0], "caller_tab") == 0) {
+		GtkWidget *i;
+		midorator_findwidget_up_macro(web_view, i, GTK_IS_NOTEBOOK(gtk_widget_get_parent(i)));
+		if (!i)
+			return NULL;
+		int ind = gtk_notebook_page_num(GTK_NOTEBOOK(gtk_widget_get_parent(i)), i);
+		return g_strdup_printf("%i", ind);
 	} else if (strcmp(args[0], "option") == 0) {
 		return g_strdup(midorator_options(arglen > 2 ? args[1] : "option", arglen > 2 ? args[2] : args[1], NULL));
 	} else if (strcmp(args[0], "jscmd") == 0) {
