@@ -46,6 +46,7 @@ logextra("%p: %s", iter, gtk_widget_get_name(iter)); \
 
 
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name);
+GObjectClass *midorator_findclass(GtkWidget *web_view, const char *name);
 GtkWidget *midori_view_from_web_view(GtkWidget *web_view);
 const char* midorator_options(const char *group, const char *name, const char *value);
 char ** midorator_options_keylist(const char *group);

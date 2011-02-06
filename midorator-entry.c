@@ -336,10 +336,10 @@ static void midorator_entry_history_add(MidoratorEntry* e, const char *str) {
 			katze_array_move_item(c, katze_array_get_nth_item(c, i), l);
 			return;
 		}
-	katze_array_add_item(c, g_strdup(str));
+	midorator_history_add_string(c, str);
 	while (katze_array_get_length(c) > 256) {
 		KatzeItem *i = katze_array_get_nth_item(c, 0);
-		g_free(i);
+		//g_free(i);
 		katze_array_remove_item(c, i);
 	}
 }

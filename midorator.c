@@ -118,6 +118,14 @@ MidoriLocationAction *midorator_locationaction(MidoriBrowser *browser) {
 	return MIDORI_LOCATION_ACTION (action);
 }
 
+GObjectClass *midorator_findclass(GtkWidget *web_view, const char *name) {
+	GtkWidget *w = midorator_findwidget(web_view, name);
+	if (w)
+		return G_OBJECT_CLASS(g_type_class_ref(G_TYPE_FROM_CLASS(G_OBJECT_GET_CLASS(G_OBJECT(w)))));
+	GType t = g_type_from_name(name);
+	return G_OBJECT_CLASS(g_type_class_ref(t));
+}
+
 GtkWidget *midorator_findwidget(GtkWidget *web_view, const char *name) {
 	logextra("%p, '%s'", web_view, name);
 	if (strchr(name, '.')) {

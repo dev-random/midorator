@@ -815,19 +815,10 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 		if (arglen == 1)
 			return NULL;
 		else if (arglen == 2) {
-			GType t = 0;
-			GtkWidget *w = midorator_findwidget(web_view, args[1]);
-			if (w)
-				t = G_OBJECT_TYPE(w);
-			else
-				t = g_type_from_name(args[1]);
-			if (!t || !G_TYPE_IS_CLASSED(t))
-				return NULL;
-			char *ret = g_strdup("");
-			GObject *o = g_object_new(t, NULL);
-			GObjectClass *c = G_OBJECT_GET_CLASS(o);
+			GObjectClass *c = midorator_findclass(web_view, args[1]);
 			guint count;
 			GParamSpec **props = g_object_class_list_properties(c, &count);
+			char *ret = g_strdup("");
 			if (props) {
 				int i;
 				for (i = 0; i < count; i++) {
@@ -837,7 +828,7 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 				}
 				g_free(props);
 			}
-			g_object_unref(o);
+			g_type_class_unref(c);
 			return ret;
 		} else
 			return midorator_getprop(web_view, arglen > 1 ? args[1] : "", arglen > 2 ? args[2] : "");
@@ -848,19 +839,9 @@ char* midorator_process_request(GtkWidget *web_view, char *args[], int arglen) {
 	} else if (strcmp(args[0], "prophelp") == 0) {
 		if (arglen != 3)
 			return NULL;
-		GType t = 0;
-		GtkWidget *w = midorator_findwidget(web_view, args[1]);
-		if (w)
-			t = G_OBJECT_TYPE(w);
-		else
-			t = g_type_from_name(args[1]);
-		if (!t || !G_TYPE_IS_CLASSED(t))
-			return NULL;
-		char *ret = g_strdup("");
-		GObject *o = g_object_new(t, NULL);
-		GObjectClass *c = G_OBJECT_GET_CLASS(o);
+		GObjectClass *c = midorator_findclass(web_view, args[1]);
 		GParamSpec *prop = g_object_class_find_property(c, args[2]);
-		g_object_unref(o);
+		g_type_class_unref(c);
 		if (!prop)
 			return NULL;
 		return g_strdup(g_param_spec_get_blurb(prop));
