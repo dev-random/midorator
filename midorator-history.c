@@ -4,6 +4,20 @@
 #include "midorator-history.h"
 
 
+void midorator_history_add_string(KatzeArray* a, const char *str) {
+	KatzeItem *it = katze_item_new();
+	katze_item_set_text(it, str);
+	katze_array_add_item(a, it);
+	g_object_unref(it);
+}
+
+const char* midorator_history_get_string(KatzeArray* a, int i) {
+	KatzeItem *it = KATZE_ITEM(katze_array_get_nth_item(a, i));
+	if (!it)
+		return NULL;
+	return katze_item_get_text(it);
+}
+
 KatzeArray* midorator_history_get_browser_history(MidoriApp* app) {
 	KatzeArray *history = NULL;
 	g_object_get(app, "history", &history, NULL);
@@ -41,7 +55,8 @@ static void midorator_history_fill(KatzeArray *a, sqlite3 *db, const char *table
 	g_free(cmd);
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		char *cmd = g_strdup((const char *)sqlite3_column_text(stmt, 0));
-		katze_array_add_item(a, cmd);
+		midorator_history_add_string(a, cmd);
+		g_free(cmd);
 	}
 	sqlite3_finalize(stmt);
 }
@@ -52,7 +67,7 @@ static void midorator_history_update(KatzeArray *a, sqlite3 *db) {
 	int i, l;
 	l = katze_array_get_length(a);
 	for (i = 0; i < l; i++) {
-		const char *item = katze_array_get_nth_item(a, i);
+		const char *item = midorator_history_get_string(a, i);
 		char *cmd = sqlite3_mprintf("INSERT INTO midorator_command_history (id, command) VALUES (%i, '%q');", i, item);
 		sqlite3_exec(db, cmd, NULL, NULL, NULL);
 		sqlite3_free(cmd);
@@ -78,15 +93,18 @@ static void midorator_history_clear_cb(KatzeArray *a, sqlite3 *db) {
 
 KatzeArray* midorator_history_get_command_history(MidoriApp* app) {
 	KatzeArray *ret = g_object_get_data(G_OBJECT(app), "midorator_command_history");
+fprintf(stderr, "---\n%p\n", ret);
 	if (ret)
 		return ret;
 	KatzeArray *br_history = midorator_history_get_browser_history(app);
 	sqlite3 *db = g_object_get_data(G_OBJECT(br_history), "db");
+fprintf(stderr, "%p\n", db);
 	if (!db)
 		return NULL;
 	if (sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS midorator_command_history (id integer, command text);", NULL, NULL, NULL) != SQLITE_OK)
 		return NULL;
-	ret = katze_array_new(G_TYPE_STRING);
+	ret = katze_array_new(KATZE_TYPE_ITEM);
+fprintf(stderr, "+%p\n", ret);
 	midorator_history_fill(ret, db, "midorator_command_history", "command");
 	g_signal_connect_after (ret, "add-item", G_CALLBACK (midorator_history_add_item_cb), db);
 	g_signal_connect_after (ret, "remove-item", G_CALLBACK (midorator_history_remove_item_cb), db);

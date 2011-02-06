@@ -1,4 +1,5 @@
 #include "midorator-entry.h"
+#include "midorator-history.h"
 #include "midorator.h"
 
 #include <stdbool.h>
@@ -133,7 +134,7 @@ static GList* midorator_entry_get_comp_list(MidoratorEntry* e, const char* str) 
 		if (katze_array_is_a(c, G_TYPE_STRING))
 			s = katze_array_get_nth_item(c, i);
 		else
-			s = katze_item_get_token(katze_array_get_nth_item(c, i));
+			s = midorator_history_get_string(c, i);
 		if (strncmp(s, str, sl) == 0) {
 			list = g_list_append(list, (gpointer)s);
 			count++;
@@ -327,17 +328,17 @@ static void midorator_entry_history_add(MidoratorEntry* e, const char *str) {
 	KatzeArray *c = e->command_history;
 	if (!c)
 		return;
-	if (!katze_array_is_a(c, G_TYPE_STRING))
+	if (!katze_array_is_a(c, KATZE_TYPE_ITEM))
 		return;
 	int i, l = katze_array_get_length(c);
 	for (i = 0; i < l; i++)
-		if (strcmp(katze_array_get_nth_item(c, i), str) == 0) {
+		if (strcmp(midorator_history_get_string(c, i), str) == 0) {
 			katze_array_move_item(c, katze_array_get_nth_item(c, i), l);
 			return;
 		}
 	katze_array_add_item(c, g_strdup(str));
 	while (katze_array_get_length(c) > 256) {
-		char *i = katze_array_get_nth_item(c, 0);
+		KatzeItem *i = katze_array_get_nth_item(c, 0);
 		g_free(i);
 		katze_array_remove_item(c, i);
 	}
@@ -351,12 +352,12 @@ static void midorator_entry_history_up(MidoratorEntry* e) {
 	KatzeArray *c = e->command_history;
 	if (!c)
 		return;
-	if (!katze_array_is_a(c, G_TYPE_STRING))
+	if (!katze_array_is_a(c, KATZE_TYPE_ITEM))
 		return;
 	int i, l = katze_array_get_length(c);
-	char *found = NULL;
+	const char *found = NULL;
 	for (i = 0; i < l; i++) {
-		char *item = katze_array_get_nth_item(c, i);
+		const char *item = midorator_history_get_string(c, i);
 		if (!pre && strcmp(item, full) == 0)
 			break;
 		else if (g_str_has_prefix(item, prefix) && strlen(item) != strlen(prefix))
@@ -376,12 +377,12 @@ static void midorator_entry_history_down(MidoratorEntry* e) {
 	KatzeArray *c = e->command_history;
 	if (!c)
 		return;
-	if (!katze_array_is_a(c, G_TYPE_STRING))
+	if (!katze_array_is_a(c, KATZE_TYPE_ITEM))
 		return;
 	int i, l = katze_array_get_length(c);
-	char *found = NULL;
+	const char *found = NULL;
 	for (i = l - 1; i >= 0; i--) {
-		char *item = katze_array_get_nth_item(c, i);
+		const char *item = midorator_history_get_string(c, i);
 		if (!pre && strcmp(item, full) == 0)
 			break;
 		else if (g_str_has_prefix(item, prefix) && strlen(item) != strlen(prefix))
