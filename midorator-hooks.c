@@ -121,7 +121,7 @@ void midorator_hooks_add(const char *name, const char *code) {
 	g_free(nname);
 }
 
-void midorator_hooks_call(_MWT obj, const char *name) {
+void midorator_hooks_call_argv(_MWT obj, const char *name, const char **argv) {
 	size_t i;
 	for (i = 0; ; i++) {
 		char *nname = g_strdup_printf("%s_%zu", name, i);
@@ -129,8 +129,22 @@ void midorator_hooks_call(_MWT obj, const char *name) {
 		g_free(nname);
 		if (!code)
 			break;
-		midorator_webkit_run_script_args(obj, code);
+		midorator_webkit_run_script_argv(obj, code, argv);
 	}
+}
+
+void __midorator_hooks_call_args(_MWT obj, const char *name, ...) {
+	va_list va;
+	va_start(va, name);
+	int i;
+	for (i = 0; va_arg(va, const char*); i++);
+	va_end(va);
+	const char **args = g_new0(const char*, i + 1);
+	va_start(va, name);
+	for (i = 0; (args[i] = va_arg(va, const char*)); i++);
+	va_end(va);
+	midorator_hooks_call_argv(obj, name, args);
+	g_free(args);
 }
 
 

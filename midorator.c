@@ -684,11 +684,16 @@ static_f void midorator_paste_clipboard_cb(WebKitWebView* web_view) {
 	g_signal_stop_emission_by_name(web_view, "paste-clipboard");
 	GtkClipboard *cb = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
 	char *text = gtk_clipboard_wait_for_text(cb);
-	gtk_clipboard_set_text(cb, text, -1);	// Otherwise WebKit will clear buffer
-	const char *js = midorator_options("jscmd", "js_paste", NULL);
-	if (js)
-		midorator_process_command(GTK_WIDGET(web_view), "jscmd", js, text);
-	g_free(text);
+	if (text)
+		gtk_clipboard_set_text(cb, text, -1);	// Otherwise WebKit will clear buffer
+	else {
+		cb = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
+		text = gtk_clipboard_wait_for_text(cb);
+	}
+	if (text) {
+		midorator_hooks_call_args(midorator_webkit_getactive(web_view), "paste", text);
+		g_free(text);
+	}
 }
 
 static_f void midorator_add_tab_cb (MidoriBrowser* browser, MidoriView* view, MidoriExtension* extension) {

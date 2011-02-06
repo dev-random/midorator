@@ -26,6 +26,7 @@ _MWT midorator_webkit_error(_MWT issuer, const char *fmt, ...);
 _MWT midorator_webkit_jserror(_MWT issuer, JSValueRef err);
 _MWT midorator_webkit_getframe(WebKitWebView *web_view, WebKitWebFrame *web_frame);
 _MWT midorator_webkit_getroot(WebKitWebView *web_view);
+_MWT midorator_webkit_getactive(WebKitWebView *web_view);
 _MWT midorator_webkit_from_string(_MWT base, const char *str);
 _MWT midorator_webkit_from_number(_MWT base, double number);
 _MWT midorator_webkit_from_boolean(_MWT base, gboolean b);

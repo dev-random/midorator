@@ -59,6 +59,11 @@ _MWT midorator_webkit_getroot(WebKitWebView *web_view) {
 	return midorator_webkit_getframe(web_view, web_frame);
 }
 
+_MWT midorator_webkit_getactive(WebKitWebView *web_view) {
+	WebKitWebFrame *web_frame = webkit_web_view_get_focused_frame(web_view);
+	return midorator_webkit_getframe(web_view, web_frame);
+}
+
 _MWT midorator_webkit_from_string(_MWT base, const char *str) {
 	JSStringRef sr = JSStringCreateWithUTF8CString(str);
 	base.elem = JSValueMakeString(base.ctx, sr);
