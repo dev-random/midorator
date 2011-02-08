@@ -507,6 +507,17 @@ static_f void midorator_show_mode(GtkWidget* web_view, const char *str) {
 gboolean (*midorator_midori_browser_key_press_event_orig) (GtkWidget* widget, GdkEventKey* event) = NULL;
 
 static_f gboolean midorator_midori_browser_key_press_event_cb (GtkWidget* widget, GdkEventKey* event) {
+	GtkWidget *w = gtk_window_get_focus(GTK_WINDOW(widget));
+	if (!WEBKIT_IS_WEB_VIEW(w) && (
+				midorator_mode(widget, 0) != 'i' ||
+				event->keyval == GDK_Escape
+				)) {
+		midorator_findwidget_macro(widget, w, GTK_IS_NOTEBOOK(w));
+		if (w)
+			w = gtk_notebook_get_nth_page(GTK_NOTEBOOK(w), gtk_notebook_get_current_page(GTK_NOTEBOOK(w)));
+		if (w)
+			gtk_widget_grab_focus(w);
+	}
 	if (gtk_window_propagate_key_event (GTK_WINDOW(widget), event))
 		return true;
 	else
