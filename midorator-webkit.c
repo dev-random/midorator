@@ -684,6 +684,7 @@ void midorator_webkit_hints(_MWT root, const char *selector, const char *hintcha
 
 	for (i = 0; i < approved.len; i++) {
 		char hint[128];
+		hint[hlen] = 0;
 		int val = i;
 		int j;
 		for (j = hlen - 1; j >= 0; j--) {
